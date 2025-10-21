@@ -7,19 +7,15 @@ import (
 	"net/http"
 )
 
-func homeHandler(w http.ResponseWriter, r *http.Request) {
-	w.Write([]byte("The initial page. Начальная страница"))
-}
-
 func main() {
 	var store = storage.NewObjectStorage()
 	handlers.InitHandlers(store)
 
-	http.HandleFunc("/home", homeHandler)
-	http.HandleFunc("/register", handlers.RegisterHandler)
+	// http.HandleFunc("/home", homeHandler)
 	http.HandleFunc("/posts/like", handlers.LikeHandler)
 	http.HandleFunc("/posts", handlers.CreatePostHandler)
 	http.HandleFunc("/posts/", handlers.GetPostHandler)
+	http.HandleFunc("/register", handlers.RegisterHandler)
 
 	fmt.Println("Запускаю сервер")
 

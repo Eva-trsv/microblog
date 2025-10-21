@@ -29,7 +29,7 @@ func GetPostHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func getAllPosts(w http.ResponseWriter, r *http.Request) {
-	posts, err := Store.GetPosts()
+	posts, err := PostService.GetAllPosts()
 	if err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
@@ -56,9 +56,9 @@ func getPostByID(w http.ResponseWriter, r *http.Request, path string) {
 		return
 	}
 
-	post, err := Store.GetPostById(postID)
+	post, err := PostService.GetPostById(postID)
 	if err != nil {
-		http.Error(w, "post not found", http.StatusBadRequest)
+		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
 
@@ -75,13 +75,12 @@ func LikeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if Store == nil {
+	if PostService == nil {
 		http.Error(w, "Storage not initialized", http.StatusInternalServerError)
 		return
 	}
 
 	postIDStr := r.FormValue("post_id")
-
 	if postIDStr == "" {
 		http.Error(w, "Post ID is required", http.StatusBadRequest)
 		return
@@ -93,13 +92,13 @@ func LikeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = Store.LikePost(postID)
+	_, err = PostService.LikePost(postID)
 	if err != nil {
-		http.Error(w, "Post not found", http.StatusNotFound)
+		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
 
-	post, err := Store.GetPostById(postID)
+	post, err := PostService.GetPostById(postID)
 	if err != nil {
 		http.Error(w, "Failed to get updated post", http.StatusInternalServerError)
 		return

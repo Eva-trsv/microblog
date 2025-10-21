@@ -1,9 +1,9 @@
 package handlers
 
 import (
-	"microblog/internal/models"
+	"encoding/json"
 	"net/http"
-	"strconv"
+	
 )
 
 func RegisterHandler(w http.ResponseWriter, r *http.Request) {
@@ -12,27 +12,29 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if UserService == nil {
+		http.Error(w, "Service not initialized", http.StatusInternalServerError)
+		return
+	}
+
 	email := r.FormValue("email")
 	username := r.FormValue("username")
-	if email == "" || username == "" {
-		http.Error(w, "Email and username are required", http.StatusBadRequest)
+	
+	user, err := UserService.RegisterUser(username, email)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	user := models.User{
-		Username: username,
-		Email:    email,
-	}
-
-	if Store == nil {
-		http.Error(w, "Error! Store is nil", http.StatusInternalServerError)
-		return
-	}
-
-	Store.CreateUser(user)
-	w.Write([]byte("User created: " + strconv.Itoa(user.ID)))
-
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"message":  "User registered successfully",
+		"user_id":  user.ID,
+		"username": user.Username,
+		"email":    user.Email,
+	})
 }
+
 
 func LoginHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("Login endpoint - to be implemented"))

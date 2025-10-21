@@ -5,6 +5,15 @@ import (
 	"microblog/internal/models"
 )
 
+type Storage interface {
+	CreateUser(user models.User) error
+	CreatePost(post models.Post) error
+	GetUserByEmail(email string) (*models.User, error)
+	GetPosts() ([]models.Post, error)
+	GetPostById(id int) (*models.Post, error)
+	LikePost(postID int) error
+}
+
 type ObjectStorage struct {
 	usersOS    map[int]models.User
 	postsOS    map[int]models.Post
@@ -60,8 +69,7 @@ func (o *ObjectStorage) GetPostById(id int) (*models.Post, error) {
 		return nil, fmt.Errorf("post with id %d not found", id)
 	}
 
-	result := post
-	return &result, nil
+	return &post, nil
 }
 
 func (o *ObjectStorage) LikePost(postID int) error {

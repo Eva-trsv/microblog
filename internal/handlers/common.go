@@ -1,11 +1,17 @@
 package handlers
 
-import "microblog/internal/storage"
+import (
+	"microblog/internal/storage"
+	"microblog/internal/service"
+)
 
 
+var (
+	PostService *service.PostService
+	UserService *service.UserService
+)
 
-var Store *storage.ObjectStorage
-
-func InitHandlers(s *storage.ObjectStorage) {
-	Store = s
+func InitHandlers(store storage.Storage) {
+	PostService = service.NewPostService(store)
+	UserService = service.NewUserService(store)
 }
