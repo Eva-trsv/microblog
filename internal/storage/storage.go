@@ -7,7 +7,7 @@ import (
 
 type Storage interface {
 	CreateUser(user models.User) error
-	CreatePost(post models.Post) error
+	CreatePost(post models.Post) (*models.Post, error)
 	GetUserByEmail(email string) (*models.User, error)
 	GetPosts() ([]models.Post, error)
 	GetPostById(id int) (*models.Post, error)
@@ -39,11 +39,11 @@ func (o *ObjectStorage) CreateUser(user models.User) error {
 	return nil
 }
 
-func (o *ObjectStorage) CreatePost(post models.Post) error {
+func (o *ObjectStorage) CreatePost(post models.Post) (*models.Post, error) {
 	post.ID = o.nextPostID
 	o.nextPostID++
 	o.postsOS[post.ID] = post
-	return nil
+	return &post, nil
 }
 
 func (o *ObjectStorage) GetUserByEmail(email string) (*models.User, error) {

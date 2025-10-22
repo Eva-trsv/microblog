@@ -53,12 +53,7 @@ func (s *PostService) CreatePost(author, content string) (*models.Post, error) {
 		Like:    0,
 	}
 
-	err := s.storage.CreatePost(post)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create post: %w", err)
-	}
-
-	createdPost, err := s.storage.GetPostById(post.ID)
+	createdPost, err := s.storage.CreatePost(post)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get created post: %w", err)
 	}
