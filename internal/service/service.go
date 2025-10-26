@@ -3,24 +3,41 @@ package service
 import (
 	"fmt"
 	"microblog/internal/models"
-	"microblog/internal/storage"
 	"regexp"
 	"strings"
 )
 
+const (
+	MinAuthorLength   = 2
+	MaxAuthorLength   = 50
+	MinContentLength  = 1
+	MaxContentLength  = 2000
+	MinUsernameLength = 2
+	MaxUsernameLength = 50
+)
+
+type Storage interface {
+	CreateUser(user models.User) error
+	CreatePost(post models.Post) (*models.Post, error)
+	GetUserByEmail(email string) (*models.User, error)
+	GetPosts() ([]models.Post, error)
+	GetPostById(id int) (*models.Post, error)
+	LikePost(postID int) error
+}
+
 type PostService struct {
-	storage storage.Storage
+	storage Storage
 }
 
 type UserService struct {
-	storage storage.Storage
+	storage Storage
 }
 
-func NewUserService(storage storage.Storage) *UserService {
+func NewUserService(storage Storage) *UserService {
 	return &UserService{storage: storage}
 }
 
-func NewPostService(storage storage.Storage) *PostService {
+func NewPostService(storage Storage) *PostService {
 	return &PostService{storage: storage}
 }
 
@@ -29,33 +46,33 @@ func (s *PostService) CreatePost(author, content string) (*models.Post, error) {
 	if author == "" {
 		return nil, fmt.Errorf("author is required")
 	}
-	if len(author) < 2 {
-		return nil, fmt.Errorf("the author cannot be less than 2 characters")
+	if len(author) < MinAuthorLength {
+		return nil, fmt.Errorf("author name must be at least %d characters", MinAuthorLength)
 	}
-	if len(author) > 50 {
-		return nil, fmt.Errorf("author name too long (max 50 characters)")
+	if len(author) > MaxAuthorLength {
+		return nil, fmt.Errorf("author name too long (max %d characters)", MaxAuthorLength)
 	}
 
 	content = strings.TrimSpace(content)
 	if content == "" {
 		return nil, fmt.Errorf("content is required")
 	}
-	if len(content) < 1 {
+	if len(content) < MinContentLength {
 		return nil, fmt.Errorf("content too short")
 	}
-	if len(content) > 2000 {
-		return nil, fmt.Errorf("content too long (max 2000 characters)")
+	if len(content) > MaxContentLength {
+		return nil, fmt.Errorf("content too long (max %d characters)", MaxContentLength)
 	}
 
 	post := models.Post{
-		Author:  author,
-		Content: content,
-		Like:    0,
+		Author:    author,
+		Content:   content,
+		LikeCount: 0,
 	}
 
 	createdPost, err := s.storage.CreatePost(post)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get created post: %w", err)
+		return nil, fmt.Errorf("failed to create post: %w", err)
 	}
 
 	return createdPost, nil
@@ -71,7 +88,8 @@ func (s *PostService) GetPostById(id int) (*models.Post, error) {
 		return nil, fmt.Errorf("post not found: %w", err)
 	}
 
-	return post, nil
+	result := *post
+	return &result, nil
 }
 
 func (s *PostService) GetAllPosts() ([]models.Post, error) {
@@ -84,7 +102,7 @@ func (s *PostService) GetAllPosts() ([]models.Post, error) {
 }
 
 func (s *PostService) LikePost(postID int) (*models.Post, error) {
-	if postID < 0 {
+	if postID <= 0 {
 		return nil, fmt.Errorf("invalid post ID")
 	}
 
@@ -111,11 +129,11 @@ func (s *UserService) RegisterUser(username, email string) (*models.User, error)
 	if username == "" {
 		return nil, fmt.Errorf("username is required")
 	}
-	if len(username) < 2 {
-		return nil, fmt.Errorf("username must be at least 2 characters")
+	if len(username) < MinUsernameLength {
+		return nil, fmt.Errorf("username must be at least %d characters", MinUsernameLength)
 	}
-	if len(username) > 50 {
-		return nil, fmt.Errorf("username too long (max 50 characters)")
+	if len(username) > MaxUsernameLength {
+		return nil, fmt.Errorf("username too long (max %d characters)", MaxUsernameLength)
 	}
 
 	email = strings.TrimSpace(email)

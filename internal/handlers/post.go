@@ -2,36 +2,183 @@ package handlers
 
 import (
 	"encoding/json"
+	"microblog/internal/service"
 	"net/http"
+	"strconv"
+	"strings"
 )
 
-func CreatePostHandler(w http.ResponseWriter, r *http.Request) {
+type PostHandlers struct {
+	postService *service.PostService
+}
+
+func NewPostHandlers(postService *service.PostService) *PostHandlers {
+	if postService == nil {
+		panic("PostHandlers: postService cannot be nil")
+	}
+	return &PostHandlers{postService: postService}
+}
+
+func (p *PostHandlers) CreatePostHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
 		http.Error(w, "Error! Only POST", http.StatusMethodNotAllowed)
-		return
-	}
-
-	if PostService == nil {
-		http.Error(w, "Service not initialized", http.StatusInternalServerError)
 		return
 	}
 
 	author := r.FormValue("author")
 	content := r.FormValue("content")
 
-	post, err := PostService.CreatePost(author, content)
+	post, err := p.postService.CreatePost(author, content)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"message": "Post created successfully",
+	response := map[string]interface{}{
+		"message": "User registered successfully",
 		"post_id": post.ID,
 		"author":  post.Author,
 		"content": post.Content,
-		"likes":   post.Like,
-	})
+		"likes":   post.LikeCount,
+	}
+
+	jsonData, err := json.Marshal(response)
+	if err != nil {
+		http.Error(w, "Failed to create response", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	w.Write(jsonData)
+
+}
+
+func (p *PostHandlers) getAllPosts(w http.ResponseWriter, r *http.Request) {
+	posts, err := p.postService.GetAllPosts()
+	if err != nil {
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	response := map[string]interface{}{
+		"message": "Posts retrieved successfully",
+		"count":   len(posts),
+		"posts":   posts,
+	}
+
+	jsonData, err := json.Marshal(response)
+	if err != nil {
+		http.Error(w, "Failed to create response", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	w.Write(jsonData)
+
+}
+
+func (p *PostHandlers) getPostByID(w http.ResponseWriter, r *http.Request, path string) {
+	idStr := strings.TrimPrefix(path, "/posts/")
+	if idStr == "" {
+		http.Error(w, "Post ID is required", http.StatusBadRequest)
+		return
+	}
+
+	postID, err := strconv.Atoi(idStr)
+	if err != nil {
+		http.Error(w, "Invalid post ID", http.StatusBadRequest)
+		return
+	}
+
+	post, err := p.postService.GetPostById(postID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+
+	response := map[string]interface{}{
+		"message": "Post retrieved successfully",
+		"post":    post,
+	}
+
+	jsonData, err := json.Marshal(response)
+	if err != nil {
+		http.Error(w, "Failed to create response", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	w.Write(jsonData)
+}
+
+func (p *PostHandlers) GetPostHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "GET" {
+		http.Error(w, "Error! Only GET", http.StatusMethodNotAllowed)
+		return
+	}
+
+	path := r.URL.Path
+
+	if path == "/posts" {
+		p.getAllPosts(w, r)
+		return
+	}
+
+	if strings.HasPrefix(path, "/posts/") {
+		p.getPostByID(w, r, path)
+		return
+	}
+
+	http.Error(w, "Invalid path", http.StatusBadRequest)
+}
+
+func (p *PostHandlers) LikeHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		http.Error(w, "Error! Only POST", http.StatusMethodNotAllowed)
+		return
+	}
+
+	postIDStr := r.FormValue("post_id")
+	if postIDStr == "" {
+		http.Error(w, "Post ID is required", http.StatusBadRequest)
+		return
+	}
+
+	postID, err := strconv.Atoi(postIDStr)
+	if err != nil {
+		http.Error(w, "Invalid post ID", http.StatusBadRequest)
+		return
+	}
+
+	_, err = p.postService.LikePost(postID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+
+	post, err := p.postService.GetPostById(postID)
+	if err != nil {
+		http.Error(w, "Failed to get updated post", http.StatusInternalServerError)
+		return
+	}
+
+	response := map[string]interface{}{
+		"message": "Post liked successfully",
+		"post_id": postID,
+		"likes":   post.LikeCount,
+		"author":  post.Author,
+		"content": post.Content,
+	}
+
+	jsonData, err := json.Marshal(response)
+	if err != nil {
+		http.Error(w, "Failed to create response", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(jsonData)
 }

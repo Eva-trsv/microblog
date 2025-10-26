@@ -10,5 +10,5 @@ type Post struct {
 	ID      int    `json:"id"`
 	Author  string `json:"author"`
 	Content string `json:"content"`
-	Like    int    `json:"like"`
+	LikeCount    int    `json:"like"`
 }
