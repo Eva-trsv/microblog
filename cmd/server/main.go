@@ -13,7 +13,7 @@ const (
 )
 
 func main() {
-	storage := &storage.ObjectStorage{}
+	storage := storage.NewObjectStorage()
 
 	userService := service.NewUserService(storage)
 	postService := service.NewPostService(storage)

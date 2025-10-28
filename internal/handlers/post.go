@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"io"
 	"microblog/internal/service"
 	"net/http"
 	"strconv"
@@ -25,17 +26,30 @@ func (p *PostHandlers) CreatePostHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	author := r.FormValue("author")
-	content := r.FormValue("content")
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, "Failed to read request body", http.StatusBadRequest)
+		return
+	}
 
-	post, err := p.postService.CreatePost(author, content)
+	var request struct {
+		Author  string `json:"author"`
+		Content string `json:"content"`
+	}
+
+	if err := json.Unmarshal(body, &request); err != nil {
+		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		return
+	}
+
+	post, err := p.postService.CreatePost(request.Author, request.Content)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
 	response := map[string]interface{}{
-		"message": "User registered successfully",
+		"message": "The post created",
 		"post_id": post.ID,
 		"author":  post.Author,
 		"content": post.Content,
@@ -141,25 +155,33 @@ func (p *PostHandlers) LikeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	postIDStr := r.FormValue("post_id")
-	if postIDStr == "" {
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, "Failed to read request body", http.StatusBadRequest)
+		return
+	}
+
+	var request struct {
+		PostID int `json:"post_id"`
+	}
+
+	if err := json.Unmarshal(body, &request); err != nil {
+		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		return
+	}
+
+	if request.PostID <= 0 {
 		http.Error(w, "Post ID is required", http.StatusBadRequest)
 		return
 	}
 
-	postID, err := strconv.Atoi(postIDStr)
-	if err != nil {
-		http.Error(w, "Invalid post ID", http.StatusBadRequest)
-		return
-	}
-
-	_, err = p.postService.LikePost(postID)
+	_, err = p.postService.LikePost(request.PostID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
 
-	post, err := p.postService.GetPostById(postID)
+	post, err := p.postService.GetPostById(request.PostID)
 	if err != nil {
 		http.Error(w, "Failed to get updated post", http.StatusInternalServerError)
 		return
@@ -167,7 +189,7 @@ func (p *PostHandlers) LikeHandler(w http.ResponseWriter, r *http.Request) {
 
 	response := map[string]interface{}{
 		"message": "Post liked successfully",
-		"post_id": postID,
+		"post_id": request.PostID,
 		"likes":   post.LikeCount,
 		"author":  post.Author,
 		"content": post.Content,

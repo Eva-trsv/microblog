@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"io"
 	"microblog/internal/service"
 	"net/http"
 )
@@ -23,10 +24,23 @@ func (u *UserHandlers) RegisterHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	email := r.FormValue("email")
-	username := r.FormValue("username")
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, "Failed to read request body", http.StatusBadRequest)
+		return
+	}
 
-	user, err := u.userService.RegisterUser(username, email)
+	var request struct {
+		Email    string `json:"email"`
+		Username string `json:"username"`
+	}
+
+	if err := json.Unmarshal(body, &request); err != nil {
+		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		return
+	}
+
+	user, err := u.userService.RegisterUser(request.Username, request.Email)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return

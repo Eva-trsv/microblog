@@ -12,6 +12,7 @@ func SetupRoutes(userService *service.UserService, postService *service.PostServ
 	http.HandleFunc("/register", userHandlers.RegisterHandler)
 	http.HandleFunc("/login", userHandlers.LoginHandler)
 	http.HandleFunc("/posts", postHandlers.GetPostHandler)
+	http.HandleFunc("/posts/", postHandlers.GetPostHandler)
 	http.HandleFunc("/posts/create", postHandlers.CreatePostHandler)
 	http.HandleFunc("/like", postHandlers.LikeHandler)
 }
