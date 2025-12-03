@@ -6,6 +6,7 @@ import (
 	"microblog/internal/service"
 	"microblog/internal/storage"
 	"net/http"
+	"microblog/internal/queue"
 )
 
 const (
@@ -17,6 +18,12 @@ func main() {
 
 	userService := service.NewUserService(storage)
 	postService := service.NewPostService(storage)
+	likeService := queue.NewLikeService(storage, 1000)
+	
+	postService.SetLikeService(likeService)
+	
+	likeService.StartWorker()
+	defer likeService.StopWorker()
 
 	handlers.SetupRoutes(userService, postService)
 

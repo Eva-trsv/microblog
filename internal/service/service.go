@@ -3,6 +3,7 @@ package service
 import (
 	"fmt"
 	"microblog/internal/models"
+	"microblog/internal/queue"
 	"regexp"
 	"strings"
 )
@@ -16,29 +17,37 @@ const (
 	MaxUsernameLength = 50
 )
 
-type Storage interface {
-	CreateUser(user models.User) error
+type PostStorage interface {
 	CreatePost(post models.Post) (*models.Post, error)
-	GetUserByEmail(email string) (*models.User, error)
 	GetPosts() ([]models.Post, error)
 	GetPostById(id int) (*models.Post, error)
 	LikePost(postID int) error
 }
 
+type UserStorage interface {
+	CreateUser(user models.User) error
+	GetUserByEmail(email string) (*models.User, error)
+}
+
 type PostService struct {
-	storage Storage
+	storage     PostStorage
+	likeService *queue.LikeService
 }
 
 type UserService struct {
-	storage Storage
+	storage UserStorage
 }
 
-func NewUserService(storage Storage) *UserService {
+func NewUserService(storage UserStorage) *UserService {
 	return &UserService{storage: storage}
 }
 
-func NewPostService(storage Storage) *PostService {
+func NewPostService(storage PostStorage) *PostService {
 	return &PostService{storage: storage}
+}
+
+func (s *PostService) SetLikeService(likeService *queue.LikeService) {
+	s.likeService = likeService
 }
 
 func (s *PostService) CreatePost(author, content string) (*models.Post, error) {
@@ -101,27 +110,22 @@ func (s *PostService) GetAllPosts() ([]models.Post, error) {
 	return posts, nil
 }
 
-func (s *PostService) LikePost(postID int) (*models.Post, error) {
+func (s *PostService) LikePost(postID int) (string, error) {
 	if postID <= 0 {
-		return nil, fmt.Errorf("invalid post ID")
+		return "", fmt.Errorf("invalid post ID")
 	}
 
 	_, err := s.storage.GetPostById(postID)
 	if err != nil {
-		return nil, fmt.Errorf("post not found: %w", err)
+		return "", fmt.Errorf("post not found: %w", err)
 	}
 
-	err = s.storage.LikePost(postID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to like post: %w", err)
+	if s.likeService == nil {
+		return "", fmt.Errorf("like service not configured")
 	}
 
-	updatedPost, err := s.storage.GetPostById(postID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get updated post: %w", err)
-	}
-
-	return updatedPost, nil
+	s.likeService.EnqueueLike(postID)
+	return "like queued", nil
 }
 
 func (s *UserService) RegisterUser(username, email string) (*models.User, error) {

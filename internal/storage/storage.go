@@ -3,9 +3,11 @@ package storage
 import (
 	"fmt"
 	"microblog/internal/models"
+	"sync"
 )
 
 type ObjectStorage struct {
+	mu       sync.Mutex
 	usersOS    map[int]models.User
 	postsOS    map[int]models.Post
 	nextUserID int
@@ -22,6 +24,8 @@ func NewObjectStorage() *ObjectStorage {
 }
 
 func (o *ObjectStorage) CreateUser(user models.User) error {
+	o.mu.Lock()
+	defer o.mu.Unlock()
 	user.ID = o.nextUserID
 	o.nextUserID++
 	o.usersOS[user.ID] = user
@@ -29,6 +33,8 @@ func (o *ObjectStorage) CreateUser(user models.User) error {
 }
 
 func (o *ObjectStorage) CreatePost(post models.Post) (*models.Post, error) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
 	post.ID = o.nextPostID
 	o.nextPostID++
 	o.postsOS[post.ID] = post
@@ -36,6 +42,8 @@ func (o *ObjectStorage) CreatePost(post models.Post) (*models.Post, error) {
 }
 
 func (o *ObjectStorage) GetUserByEmail(email string) (*models.User, error) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
 	for _, user := range o.usersOS {
 		if user.Email == email {
 			return &user, nil
@@ -45,6 +53,8 @@ func (o *ObjectStorage) GetUserByEmail(email string) (*models.User, error) {
 }
 
 func (o *ObjectStorage) GetPosts() ([]models.Post, error) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
 	posts := make([]models.Post, 0, len(o.postsOS))
 	for _, post := range o.postsOS {
 		posts = append(posts, post)
@@ -53,6 +63,8 @@ func (o *ObjectStorage) GetPosts() ([]models.Post, error) {
 }
 
 func (o *ObjectStorage) GetPostById(id int) (*models.Post, error) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
 	post, exists := o.postsOS[id]
 	if !exists {
 		return nil, fmt.Errorf("post with id %d not found", id)

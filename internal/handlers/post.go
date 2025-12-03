@@ -155,41 +155,34 @@ func (p *PostHandlers) LikeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	body, err := io.ReadAll(r.Body)
+	path := r.URL.Path
+	parts := strings.Split(path, "/")
+	if len(parts) != 3 {
+		http.Error(w, "Invalid path. Use /like/{id}", http.StatusBadRequest)
+		return
+	}
+
+	postID, err := strconv.Atoi(parts[2])
+	if err != nil || postID <= 0 {
+		http.Error(w, "Invalid post ID", http.StatusBadRequest)
+		return
+	}
+
+	msg, err := p.postService.LikePost(postID)
 	if err != nil {
-		http.Error(w, "Failed to read request body", http.StatusBadRequest)
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	var request struct {
-		PostID int `json:"post_id"`
-	}
-
-	if err := json.Unmarshal(body, &request); err != nil {
-		http.Error(w, "Invalid JSON", http.StatusBadRequest)
-		return
-	}
-
-	if request.PostID <= 0 {
-		http.Error(w, "Post ID is required", http.StatusBadRequest)
-		return
-	}
-
-	_, err = p.postService.LikePost(request.PostID)
+	post, err := p.postService.GetPostById(postID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusNotFound)
-		return
-	}
-
-	post, err := p.postService.GetPostById(request.PostID)
-	if err != nil {
-		http.Error(w, "Failed to get updated post", http.StatusInternalServerError)
+		http.Error(w, "Failed to get post data", http.StatusInternalServerError)
 		return
 	}
 
 	response := map[string]interface{}{
-		"message": "Post liked successfully",
-		"post_id": request.PostID,
+		"message": msg,
+		"post_id": postID,
 		"likes":   post.LikeCount,
 		"author":  post.Author,
 		"content": post.Content,
