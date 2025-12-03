@@ -22,19 +22,17 @@ func NewObjectStorage() *ObjectStorage {
 }
 
 func (o *ObjectStorage) CreateUser(user models.User) error {
-
 	user.ID = o.nextUserID
 	o.nextUserID++
 	o.usersOS[user.ID] = user
-
 	return nil
 }
 
-func (o *ObjectStorage) CreatePost(post models.Post) error {
+func (o *ObjectStorage) CreatePost(post models.Post) (*models.Post, error) {
 	post.ID = o.nextPostID
 	o.nextPostID++
 	o.postsOS[post.ID] = post
-	return nil
+	return &post, nil
 }
 
 func (o *ObjectStorage) GetUserByEmail(email string) (*models.User, error) {
@@ -60,8 +58,7 @@ func (o *ObjectStorage) GetPostById(id int) (*models.Post, error) {
 		return nil, fmt.Errorf("post with id %d not found", id)
 	}
 
-	result := post
-	return &result, nil
+	return &post, nil
 }
 
 func (o *ObjectStorage) LikePost(postID int) error {
@@ -69,7 +66,7 @@ func (o *ObjectStorage) LikePost(postID int) error {
 	if !exists {
 		return fmt.Errorf("post not found")
 	}
-	post.Like++
+	post.LikeCount++
 	o.postsOS[postID] = post
 	return nil
 }

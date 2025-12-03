@@ -3,27 +3,26 @@ package main
 import (
 	"fmt"
 	"microblog/internal/handlers"
+	"microblog/internal/service"
 	"microblog/internal/storage"
 	"net/http"
 )
 
-func homeHandler(w http.ResponseWriter, r *http.Request) {
-	w.Write([]byte("The initial page. Начальная страница"))
-}
+const (
+	ServerPort = ":9091"
+)
 
 func main() {
-	var store = storage.NewObjectStorage()
-	handlers.InitHandlers(store)
+	storage := storage.NewObjectStorage()
 
-	http.HandleFunc("/home", homeHandler)
-	http.HandleFunc("/register", handlers.RegisterHandler)
-	http.HandleFunc("/posts/like", handlers.LikeHandler)
-	http.HandleFunc("/posts", handlers.CreatePostHandler)
-	http.HandleFunc("/posts/", handlers.GetPostHandler)
+	userService := service.NewUserService(storage)
+	postService := service.NewPostService(storage)
+
+	handlers.SetupRoutes(userService, postService)
 
 	fmt.Println("Запускаю сервер")
 
-	err := http.ListenAndServe(":9091", nil)
+	err := http.ListenAndServe(ServerPort, nil)
 	if err != nil {
 		fmt.Println("Произошла ошибка:", err.Error())
 	}
