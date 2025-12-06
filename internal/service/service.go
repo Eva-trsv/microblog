@@ -128,6 +128,8 @@ func (s *PostService) LikePost(postID int) (string, error) {
 	return "like queued", nil
 }
 
+// USER SERVICE
+
 func (s *UserService) RegisterUser(username, email string) (*models.User, error) {
 	username = strings.TrimSpace(username)
 	if username == "" {

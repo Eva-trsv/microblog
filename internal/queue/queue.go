@@ -12,7 +12,7 @@ type LikeService struct {
 func NewLikeService(storage *storage.ObjectStorage, queueSize int) *LikeService {
 	return &LikeService{
 		storage:   storage,
-		likeQueue: make(chan int),
+		likeQueue: make(chan int, queueSize),
 	}
 }
 

@@ -7,7 +7,7 @@ import (
 )
 
 type ObjectStorage struct {
-	mu       sync.Mutex
+	mu         sync.Mutex
 	usersOS    map[int]models.User
 	postsOS    map[int]models.Post
 	nextUserID int
@@ -74,6 +74,9 @@ func (o *ObjectStorage) GetPostById(id int) (*models.Post, error) {
 }
 
 func (o *ObjectStorage) LikePost(postID int) error {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+
 	post, exists := o.postsOS[postID]
 	if !exists {
 		return fmt.Errorf("post not found")
