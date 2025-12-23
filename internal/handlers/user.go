@@ -3,29 +3,43 @@ package handlers
 import (
 	"encoding/json"
 	"io"
+	"microblog/internal/logger"
 	"microblog/internal/service"
 	"net/http"
 )
 
 type UserHandlers struct {
 	userService *service.UserService
+	log         *logger.Logger
 }
 
-func NewUserHandlers(userService *service.UserService) *UserHandlers {
+func NewUserHandlers(userService *service.UserService, log *logger.Logger) *UserHandlers {
 	if userService == nil {
 		panic("UserHandlers: userService cannot be nil")
 	}
-	return &UserHandlers{userService: userService}
+	if log == nil {
+		panic("UserHandlers: log cannot be nil")
+	}
+
+	return &UserHandlers{
+		userService: userService,
+		log:         log}
 }
 
 func (u *UserHandlers) RegisterHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
+		u.log.Log("http_method_not_allowed", map[string]any{
+			"method": r.Method,
+		})
 		http.Error(w, "Error! Only POST", http.StatusMethodNotAllowed)
 		return
 	}
 
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
+		u.log.Log("http_request_body_read_error", map[string]any{
+			"method": r.Method,
+		})
 		http.Error(w, "Failed to read request body", http.StatusBadRequest)
 		return
 	}
@@ -36,12 +50,19 @@ func (u *UserHandlers) RegisterHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.Unmarshal(body, &request); err != nil {
+		u.log.Log("http_invalid_json", map[string]any{
+			"error": err.Error(),
+		})
 		http.Error(w, "Invalid JSON", http.StatusBadRequest)
 		return
 	}
 
 	user, err := u.userService.RegisterUser(request.Username, request.Email)
 	if err != nil {
+		u.log.Log("register_user_failed", map[string]any{
+			"author": request.Username,
+			"error":  err.Error(),
+		})
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -55,6 +76,9 @@ func (u *UserHandlers) RegisterHandler(w http.ResponseWriter, r *http.Request) {
 
 	jsonData, err := json.Marshal(response)
 	if err != nil {
+		u.log.Log("http_response_marshal_error", map[string]any{
+			"error": err.Error(),
+		})
 		http.Error(w, "Failed to create response", http.StatusInternalServerError)
 		return
 	}

@@ -1,6 +1,7 @@
 package service_test
 
 import (
+	"microblog/internal/logger"
 	"microblog/internal/queue"
 	"microblog/internal/service"
 	"microblog/internal/storage"
@@ -12,7 +13,11 @@ import (
 
 func TestRegisterUser(t *testing.T) {
 	storage := storage.NewObjectStorage()
-	userService := service.NewUserService(storage)
+
+	log := logger.NewLogger(10)
+	defer log.Close()
+
+	userService := service.NewUserService(storage, log)
 
 	user, err := userService.RegisterUser("Eva", "testeva@mail.ru")
 	if err != nil {
@@ -45,7 +50,11 @@ func TestRegisterUser(t *testing.T) {
 
 func TestCreatePost(t *testing.T) {
 	storage := storage.NewObjectStorage()
-	postService := service.NewPostService(storage)
+
+	log := logger.NewLogger(10)
+	defer log.Close()
+
+	postService := service.NewPostService(storage, log)
 
 	post, err := postService.CreatePost("Eva", "Мой первый пост")
 	if err != nil {
@@ -79,7 +88,11 @@ func TestCreatePost(t *testing.T) {
 
 func TestGetAllPosts(t *testing.T) {
 	storage := storage.NewObjectStorage()
-	postService := service.NewPostService(storage)
+
+	log := logger.NewLogger(10)
+	defer log.Close()
+
+	postService := service.NewPostService(storage, log)
 
 	postService.CreatePost("Eva", "Мой первый пост")
 	postService.CreatePost("Alice", "Мой dnjhjq пост")
@@ -96,7 +109,11 @@ func TestGetAllPosts(t *testing.T) {
 
 func TestGetPostById(t *testing.T) {
 	storage := storage.NewObjectStorage()
-	postService := service.NewPostService(storage)
+
+	log := logger.NewLogger(10)
+	defer log.Close()
+
+	postService := service.NewPostService(storage, log)
 
 	post, _ := postService.CreatePost("Eva", "Тестовый пост")
 
@@ -116,8 +133,13 @@ func TestGetPostById(t *testing.T) {
 
 func TestLikePost(t *testing.T) {
 	storage := storage.NewObjectStorage()
-	postService := service.NewPostService(storage)
+
+	log := logger.NewLogger(10)
+	defer log.Close()
+
+	postService := service.NewPostService(storage, log)
 	likeService := queue.NewLikeService(storage, 1000)
+
 	postService.SetLikeService(likeService)
 	likeService.StartWorker()
 	defer likeService.StopWorker()

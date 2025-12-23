@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"io"
+	"microblog/internal/logger"
 	"microblog/internal/service"
 	"net/http"
 	"strconv"
@@ -11,23 +12,36 @@ import (
 
 type PostHandlers struct {
 	postService *service.PostService
+	log         *logger.Logger
 }
 
-func NewPostHandlers(postService *service.PostService) *PostHandlers {
+func NewPostHandlers(postService *service.PostService, log *logger.Logger) *PostHandlers {
 	if postService == nil {
 		panic("PostHandlers: postService cannot be nil")
 	}
-	return &PostHandlers{postService: postService}
+	if log == nil {
+		panic("PostHandlers: log cannot be nil")
+	}
+	return &PostHandlers{
+		postService: postService,
+		log:         log,
+	}
 }
 
 func (p *PostHandlers) CreatePostHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
+		p.log.Log("http_method_not_allowed", map[string]any{
+			"method": r.Method,
+		})
 		http.Error(w, "Error! Only POST", http.StatusMethodNotAllowed)
 		return
 	}
 
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
+		p.log.Log("http_request_body_read_error", map[string]any{
+			"error": err.Error(),
+		})
 		http.Error(w, "Failed to read request body", http.StatusBadRequest)
 		return
 	}
@@ -38,15 +52,27 @@ func (p *PostHandlers) CreatePostHandler(w http.ResponseWriter, r *http.Request)
 	}
 
 	if err := json.Unmarshal(body, &request); err != nil {
+		p.log.Log("http_invalid_json", map[string]any{
+			"error": err.Error(),
+		})
 		http.Error(w, "Invalid JSON", http.StatusBadRequest)
 		return
 	}
 
 	post, err := p.postService.CreatePost(request.Author, request.Content)
 	if err != nil {
+		p.log.Log("create_post_failed", map[string]any{
+			"author": request.Author,
+			"error":  err.Error(),
+		})
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+
+	p.log.Log("http_post_created", map[string]any{
+		"post_id": post.ID,
+		"author":  post.Author,
+	})
 
 	response := map[string]interface{}{
 		"message": "The post created",
@@ -58,6 +84,9 @@ func (p *PostHandlers) CreatePostHandler(w http.ResponseWriter, r *http.Request)
 
 	jsonData, err := json.Marshal(response)
 	if err != nil {
+		p.log.Log("http_response_marshal_error", map[string]any{
+			"error": err.Error(),
+		})
 		http.Error(w, "Failed to create response", http.StatusInternalServerError)
 		return
 	}
@@ -71,6 +100,9 @@ func (p *PostHandlers) CreatePostHandler(w http.ResponseWriter, r *http.Request)
 func (p *PostHandlers) getAllPosts(w http.ResponseWriter, r *http.Request) {
 	posts, err := p.postService.GetAllPosts()
 	if err != nil {
+		p.log.Log("get_all_posts_failed", map[string]any{
+			"error": err.Error(),
+		})
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
@@ -83,6 +115,9 @@ func (p *PostHandlers) getAllPosts(w http.ResponseWriter, r *http.Request) {
 
 	jsonData, err := json.Marshal(response)
 	if err != nil {
+		p.log.Log("http_response_marshal_error", map[string]any{
+			"error": err.Error(),
+		})
 		http.Error(w, "Failed to create response", http.StatusInternalServerError)
 		return
 	}
@@ -96,21 +131,33 @@ func (p *PostHandlers) getAllPosts(w http.ResponseWriter, r *http.Request) {
 func (p *PostHandlers) getPostByID(w http.ResponseWriter, r *http.Request, path string) {
 	idStr := strings.TrimPrefix(path, "/posts/")
 	if idStr == "" {
+		p.log.Log("http_post_id_missing", map[string]any{})
 		http.Error(w, "Post ID is required", http.StatusBadRequest)
 		return
 	}
 
 	postID, err := strconv.Atoi(idStr)
 	if err != nil {
+		p.log.Log("http_invalid_post_id", map[string]any{
+			"id": idStr,
+		})
 		http.Error(w, "Invalid post ID", http.StatusBadRequest)
 		return
 	}
 
 	post, err := p.postService.GetPostById(postID)
 	if err != nil {
+		p.log.Log("http_post_not_found", map[string]any{
+			"post_id": postID,
+			"error":   err.Error(),
+		})
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
+
+	p.log.Log("http_post_retrieved", map[string]any{
+		"post_id": postID,
+	})
 
 	response := map[string]interface{}{
 		"message": "Post retrieved successfully",
@@ -119,6 +166,10 @@ func (p *PostHandlers) getPostByID(w http.ResponseWriter, r *http.Request, path 
 
 	jsonData, err := json.Marshal(response)
 	if err != nil {
+		p.log.Log("http_response_marshal_error", map[string]any{
+			"post_id": postID,
+			"error":   err.Error(),
+		})
 		http.Error(w, "Failed to create response", http.StatusInternalServerError)
 		return
 	}
@@ -130,6 +181,9 @@ func (p *PostHandlers) getPostByID(w http.ResponseWriter, r *http.Request, path 
 
 func (p *PostHandlers) GetPostHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "GET" {
+		p.log.Log("http_method_not_allowed", map[string]any{
+			"method": r.Method,
+		})
 		http.Error(w, "Error! Only GET", http.StatusMethodNotAllowed)
 		return
 	}
@@ -146,11 +200,17 @@ func (p *PostHandlers) GetPostHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	p.log.Log("http_invalid_path", map[string]any{
+		"path": path,
+	})
 	http.Error(w, "Invalid path", http.StatusBadRequest)
 }
 
 func (p *PostHandlers) LikeHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
+		p.log.Log("http_method_not_allowed", map[string]any{
+			"method": r.Method,
+		})
 		http.Error(w, "Error! Only POST", http.StatusMethodNotAllowed)
 		return
 	}
@@ -158,24 +218,42 @@ func (p *PostHandlers) LikeHandler(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path
 	parts := strings.Split(path, "/")
 	if len(parts) != 3 {
+		p.log.Log("http_invalid_like_path", map[string]any{
+			"path": path,
+		})
 		http.Error(w, "Invalid path. Use /like/{id}", http.StatusBadRequest)
 		return
 	}
 
 	postID, err := strconv.Atoi(parts[2])
 	if err != nil || postID <= 0 {
+		p.log.Log("http_invalid_like_id", map[string]any{
+			"value": parts[2],
+		})
 		http.Error(w, "Invalid post ID", http.StatusBadRequest)
 		return
 	}
 
 	msg, err := p.postService.LikePost(postID)
 	if err != nil {
+		p.log.Log("like_failed", map[string]any{
+			"post_id": postID,
+			"error":   err.Error(),
+		})
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
+	p.log.Log("like_queued", map[string]any{
+		"post_id": postID,
+	})
+
 	post, err := p.postService.GetPostById(postID)
 	if err != nil {
+		p.log.Log("get_post_failed", map[string]any{
+			"post_id": postID,
+			"error":   err.Error(),
+		})
 		http.Error(w, "Failed to get post data", http.StatusInternalServerError)
 		return
 	}
@@ -190,10 +268,19 @@ func (p *PostHandlers) LikeHandler(w http.ResponseWriter, r *http.Request) {
 
 	jsonData, err := json.Marshal(response)
 	if err != nil {
+		p.log.Log("http_response_marshal_error", map[string]any{
+			"post_id": postID,
+			"error":   err.Error(),
+		})
 		http.Error(w, "Failed to create response", http.StatusInternalServerError)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(jsonData)
+
+	p.log.Log("http_like_response_sent", map[string]any{
+		"post_id": postID,
+		"likes":   post.LikeCount,
+	})
 }

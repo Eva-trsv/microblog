@@ -1,6 +1,7 @@
 package service_test
 
 import (
+	"microblog/internal/logger"
 	"microblog/internal/queue"
 	"microblog/internal/service"
 	"microblog/internal/storage"
@@ -10,7 +11,11 @@ import (
 
 func BenchmarkRegisterUser(b *testing.B) {
 	storage := storage.NewObjectStorage()
-	userService := service.NewUserService(storage)
+
+	log := logger.NewLogger(1000)
+	defer log.Close()
+
+	userService := service.NewUserService(storage, log)
 
 	b.ResetTimer()
 
@@ -21,7 +26,11 @@ func BenchmarkRegisterUser(b *testing.B) {
 
 func BenchmarkCreatePost(b *testing.B) {
 	storage := storage.NewObjectStorage()
-	postService := service.NewPostService(storage)
+
+	log := logger.NewLogger(1000)
+	defer log.Close()
+
+	postService := service.NewPostService(storage, log)
 
 	b.ResetTimer()
 
@@ -33,7 +42,11 @@ func BenchmarkCreatePost(b *testing.B) {
 
 func BenchmarkLargeTextCreateAndRead(b *testing.B) {
 	storage := storage.NewObjectStorage()
-	postService := service.NewPostService(storage)
+
+	log := logger.NewLogger(1000)
+	defer log.Close()
+
+	postService := service.NewPostService(storage, log)
 
 	largeText := strings.Repeat("A", 2_000)
 
@@ -54,7 +67,11 @@ func BenchmarkLargeTextCreateAndRead(b *testing.B) {
 
 func BenchmarkGetPostById(b *testing.B) {
 	storage := storage.NewObjectStorage()
-	postService := service.NewPostService(storage)
+
+	log := logger.NewLogger(1000)
+	defer log.Close()
+
+	postService := service.NewPostService(storage, log)
 
 	post, _ := postService.CreatePost("Eva", "Benchmark post")
 
@@ -67,7 +84,11 @@ func BenchmarkGetPostById(b *testing.B) {
 
 func BenchmarkGetAllPosts(b *testing.B) {
 	storage := storage.NewObjectStorage()
-	postService := service.NewPostService(storage)
+
+	log := logger.NewLogger(1000)
+	defer log.Close()
+
+	postService := service.NewPostService(storage, log)
 
 	for i := 0; i < 100; i++ {
 		postService.CreatePost("Eva", "Benchmark post")
@@ -82,8 +103,13 @@ func BenchmarkGetAllPosts(b *testing.B) {
 
 func BenchmarkLikePost(b *testing.B) {
 	storage := storage.NewObjectStorage()
-	postService := service.NewPostService(storage)
+
+	log := logger.NewLogger(1000)
+	defer log.Close()
+
+	postService := service.NewPostService(storage, log)
 	likeService := queue.NewLikeService(storage, 1000)
+
 	postService.SetLikeService(likeService)
 	likeService.StartWorker()
 	defer likeService.StopWorker()

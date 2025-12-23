@@ -1,6 +1,7 @@
 package service_test
 
 import (
+	"microblog/internal/logger"
 	"microblog/internal/queue"
 	"microblog/internal/service"
 	"microblog/internal/storage"
@@ -12,7 +13,11 @@ import (
 
 func TestRegisterUserRace(t *testing.T) {
 	storage := storage.NewObjectStorage()
-	userService := service.NewUserService(storage)
+
+	log := logger.NewLogger(1000)
+	defer log.Close()
+
+	userService := service.NewUserService(storage, log)
 
 	var wg sync.WaitGroup
 	numUsers := 100
@@ -31,8 +36,13 @@ func TestRegisterUserRace(t *testing.T) {
 
 func TestLikePostRace(t *testing.T) {
 	storage := storage.NewObjectStorage()
-	postService := service.NewPostService(storage)
+
+	log := logger.NewLogger(1000)
+	defer log.Close()
+
+	postService := service.NewPostService(storage, log)
 	likeService := queue.NewLikeService(storage, 1000)
+
 	postService.SetLikeService(likeService)
 	likeService.StartWorker()
 	defer likeService.StopWorker()
@@ -62,7 +72,11 @@ func TestLikePostRace(t *testing.T) {
 
 func TestCreatePostRace(t *testing.T) {
 	storage := storage.NewObjectStorage()
-	postService := service.NewPostService(storage)
+
+	log := logger.NewLogger(1000)
+	defer log.Close()
+
+	postService := service.NewPostService(storage, log)
 
 	var wg sync.WaitGroup
 	numPosts := 100
@@ -79,7 +93,11 @@ func TestCreatePostRace(t *testing.T) {
 
 func TestGetPostByIdRace(t *testing.T) {
 	storage := storage.NewObjectStorage()
-	postService := service.NewPostService(storage)
+
+	log := logger.NewLogger(1000)
+	defer log.Close()
+
+	postService := service.NewPostService(storage, log)
 
 	post, _ := postService.CreatePost("Eva", "Race test post")
 
