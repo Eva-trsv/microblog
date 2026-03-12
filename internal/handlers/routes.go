@@ -10,10 +10,12 @@ func SetupRoutes(userService *service.UserService, postService *service.PostServ
 	userHandlers := NewUserHandlers(userService, log)
 	postHandlers := NewPostHandlers(postService, log)
 
-	http.HandleFunc("/register", userHandlers.RegisterHandler)
+	http.HandleFunc("/register", userHandlers.CreateHandler)
 	http.HandleFunc("/login", userHandlers.LoginHandler)
-	http.HandleFunc("/posts", postHandlers.GetPostHandler)
-	http.HandleFunc("/posts/", postHandlers.GetPostHandler)
+	http.HandleFunc("/users", userHandlers.GetUserByIDHandler)
+	http.HandleFunc("/users/email", userHandlers.GetUserByEmailHandler)
+	http.HandleFunc("/authors/", postHandlers.GetByAuthorIDHandler)
+	http.HandleFunc("/posts/", postHandlers.DeleteHandler)
 	http.HandleFunc("/posts/create", postHandlers.CreatePostHandler)
 	http.HandleFunc("/like/", postHandlers.LikeHandler)
 }

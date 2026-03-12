@@ -1,29 +1,55 @@
 package queue
 
 import (
-	"microblog/internal/storage"
+	"context"
+	"microblog/internal/repository"
+	"log"
 )
 
 type LikeService struct {
-	storage   *storage.ObjectStorage
-	likeQueue chan int
+	likeRepo  *repository.LikeRepository
+	likeQueue chan likeTask
 }
 
-func NewLikeService(storage *storage.ObjectStorage, queueSize int) *LikeService {
+type likeTask struct {
+	UserID int
+	PostID int
+}
+
+func NewLikeService(likeRepo *repository.LikeRepository, queueSize int) *LikeService {
 	return &LikeService{
-		storage:   storage,
-		likeQueue: make(chan int, queueSize),
+		likeRepo:  likeRepo,
+		likeQueue: make(chan likeTask, queueSize),
 	}
 }
 
-func (s *LikeService) EnqueueLike(postID int) {
-	s.likeQueue <- postID
+func (s *LikeService) EnqueueLike(userID, postID int) {
+	s.likeQueue <- likeTask{UserID: userID, PostID: postID}
 }
 
 func (s *LikeService) StartWorker() {
 	go func() {
-		for postID := range s.likeQueue {
-			s.storage.LikePost(postID)
+		for task := range s.likeQueue {
+
+			ctx := context.Background()
+
+			tx, err := s.likeRepo.DB().Begin(ctx)
+			if err != nil {
+				log.Println("failed to begin tx:", err)
+				continue
+			}
+
+			err = s.likeRepo.AddLike(ctx, tx, task.UserID, task.PostID)
+			if err != nil {
+				_ = tx.Rollback(ctx)
+				log.Println("failed to add like:", err)
+				continue
+			}
+
+			err = tx.Commit(ctx)
+			if err != nil {
+				log.Println("failed to commit tx:", err)
+			}
 		}
 	}()
 }

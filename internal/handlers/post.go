@@ -47,8 +47,8 @@ func (p *PostHandlers) CreatePostHandler(w http.ResponseWriter, r *http.Request)
 	}
 
 	var request struct {
-		Author  string `json:"author"`
-		Content string `json:"content"`
+		AuthorID int    `json:"author"`
+		Content  string `json:"content"`
 	}
 
 	if err := json.Unmarshal(body, &request); err != nil {
@@ -59,10 +59,10 @@ func (p *PostHandlers) CreatePostHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	post, err := p.postService.CreatePost(request.Author, request.Content)
+	post, err := p.postService.CreatePost(request.AuthorID, request.Content)
 	if err != nil {
 		p.log.Log("create_post_failed", map[string]any{
-			"author": request.Author,
+			"author": request.AuthorID,
 			"error":  err.Error(),
 		})
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -70,16 +70,16 @@ func (p *PostHandlers) CreatePostHandler(w http.ResponseWriter, r *http.Request)
 	}
 
 	p.log.Log("http_post_created", map[string]any{
-		"post_id": post.ID,
-		"author":  post.Author,
+		"post_id":   post.ID,
+		"author_id": post.AuthorID,
 	})
 
 	response := map[string]interface{}{
-		"message": "The post created",
-		"post_id": post.ID,
-		"author":  post.Author,
-		"content": post.Content,
-		"likes":   post.LikeCount,
+		"message":   "The post created",
+		"post_id":   post.ID,
+		"author_id": post.AuthorID,
+		"content":   post.Content,
+		"likes":     post.LikeCount,
 	}
 
 	jsonData, err := json.Marshal(response)
@@ -95,115 +95,6 @@ func (p *PostHandlers) CreatePostHandler(w http.ResponseWriter, r *http.Request)
 	w.WriteHeader(http.StatusCreated)
 	w.Write(jsonData)
 
-}
-
-func (p *PostHandlers) getAllPosts(w http.ResponseWriter, r *http.Request) {
-	posts, err := p.postService.GetAllPosts()
-	if err != nil {
-		p.log.Log("get_all_posts_failed", map[string]any{
-			"error": err.Error(),
-		})
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return
-	}
-
-	response := map[string]interface{}{
-		"message": "Posts retrieved successfully",
-		"count":   len(posts),
-		"posts":   posts,
-	}
-
-	jsonData, err := json.Marshal(response)
-	if err != nil {
-		p.log.Log("http_response_marshal_error", map[string]any{
-			"error": err.Error(),
-		})
-		http.Error(w, "Failed to create response", http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	w.Write(jsonData)
-
-}
-
-func (p *PostHandlers) getPostByID(w http.ResponseWriter, r *http.Request, path string) {
-	idStr := strings.TrimPrefix(path, "/posts/")
-	if idStr == "" {
-		p.log.Log("http_post_id_missing", map[string]any{})
-		http.Error(w, "Post ID is required", http.StatusBadRequest)
-		return
-	}
-
-	postID, err := strconv.Atoi(idStr)
-	if err != nil {
-		p.log.Log("http_invalid_post_id", map[string]any{
-			"id": idStr,
-		})
-		http.Error(w, "Invalid post ID", http.StatusBadRequest)
-		return
-	}
-
-	post, err := p.postService.GetPostById(postID)
-	if err != nil {
-		p.log.Log("http_post_not_found", map[string]any{
-			"post_id": postID,
-			"error":   err.Error(),
-		})
-		http.Error(w, err.Error(), http.StatusNotFound)
-		return
-	}
-
-	p.log.Log("http_post_retrieved", map[string]any{
-		"post_id": postID,
-	})
-
-	response := map[string]interface{}{
-		"message": "Post retrieved successfully",
-		"post":    post,
-	}
-
-	jsonData, err := json.Marshal(response)
-	if err != nil {
-		p.log.Log("http_response_marshal_error", map[string]any{
-			"post_id": postID,
-			"error":   err.Error(),
-		})
-		http.Error(w, "Failed to create response", http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	w.Write(jsonData)
-}
-
-func (p *PostHandlers) GetPostHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "GET" {
-		p.log.Log("http_method_not_allowed", map[string]any{
-			"method": r.Method,
-		})
-		http.Error(w, "Error! Only GET", http.StatusMethodNotAllowed)
-		return
-	}
-
-	path := r.URL.Path
-
-	if path == "/posts" {
-		p.getAllPosts(w, r)
-		return
-	}
-
-	if strings.HasPrefix(path, "/posts/") {
-		p.getPostByID(w, r, path)
-		return
-	}
-
-	p.log.Log("http_invalid_path", map[string]any{
-		"path": path,
-	})
-	http.Error(w, "Invalid path", http.StatusBadRequest)
 }
 
 func (p *PostHandlers) LikeHandler(w http.ResponseWriter, r *http.Request) {
@@ -225,6 +116,14 @@ func (p *PostHandlers) LikeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	userIDStr := r.URL.Query().Get("user_id")
+	userID, err := strconv.Atoi(userIDStr)
+	if err != nil || userID <= 0 {
+		p.log.Log("http_invalid_user_id", map[string]any{"value": userIDStr})
+		http.Error(w, "Invalid user ID", http.StatusBadRequest)
+		return
+	}
+
 	postID, err := strconv.Atoi(parts[2])
 	if err != nil || postID <= 0 {
 		p.log.Log("http_invalid_like_id", map[string]any{
@@ -234,7 +133,17 @@ func (p *PostHandlers) LikeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	msg, err := p.postService.LikePost(postID)
+	post, err := p.postService.GetPostByID(postID)
+	if err != nil {
+		p.log.Log("get_post_failed", map[string]any{
+			"post_id": postID,
+			"error":   err.Error(),
+		})
+		http.Error(w, "Failed to get post data", http.StatusInternalServerError)
+		return
+	}
+
+	msg, err := p.postService.LikePost(postID, userID)
 	if err != nil {
 		p.log.Log("like_failed", map[string]any{
 			"post_id": postID,
@@ -248,22 +157,12 @@ func (p *PostHandlers) LikeHandler(w http.ResponseWriter, r *http.Request) {
 		"post_id": postID,
 	})
 
-	post, err := p.postService.GetPostById(postID)
-	if err != nil {
-		p.log.Log("get_post_failed", map[string]any{
-			"post_id": postID,
-			"error":   err.Error(),
-		})
-		http.Error(w, "Failed to get post data", http.StatusInternalServerError)
-		return
-	}
-
 	response := map[string]interface{}{
-		"message": msg,
-		"post_id": postID,
-		"likes":   post.LikeCount,
-		"author":  post.Author,
-		"content": post.Content,
+		"message":   msg,
+		"post_id":   postID,
+		"likes":     post.LikeCount,
+		"author_id": post.AuthorID,
+		"content":   post.Content,
 	}
 
 	jsonData, err := json.Marshal(response)
@@ -283,4 +182,130 @@ func (p *PostHandlers) LikeHandler(w http.ResponseWriter, r *http.Request) {
 		"post_id": postID,
 		"likes":   post.LikeCount,
 	})
+}
+
+func (p *PostHandlers) DeleteHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "DELETE" {
+		p.log.Log("http_method_not_allowed", map[string]any{
+			"method": r.Method,
+		})
+		http.Error(w, "Error! Only DELETE", http.StatusMethodNotAllowed)
+		return
+	}
+
+	path := r.URL.Path
+	parts := strings.Split(path, "/")
+	if len(parts) != 3 || parts[1] != "posts" {
+		p.log.Log("http_invalid_delete_path", map[string]any{
+			"path": path,
+		})
+		http.Error(w, "Invalid path. Use /posts/{id}", http.StatusBadRequest)
+		return
+	}
+
+	postID, err := strconv.Atoi(parts[2])
+	if err != nil || postID <= 0 {
+		p.log.Log("http_invalid_post_id", map[string]any{
+			"value": parts[2],
+		})
+		http.Error(w, "Invalid post ID", http.StatusBadRequest)
+		return
+	}
+
+	err = p.postService.DeletePost(postID)
+	if err != nil {
+		p.log.Log("delete_post_failed", map[string]any{
+			"post_id": postID,
+			"error":   err.Error(),
+		})
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	p.log.Log("post_deleted", map[string]any{
+		"post_id": postID,
+	})
+
+	response := map[string]interface{}{
+		"message": "delete",
+		"post_id": postID,
+	}
+
+	jsonData, err := json.Marshal(response)
+	if err != nil {
+		p.log.Log("http_response_marshal_error", map[string]any{
+			"post_id": postID,
+			"error":   err.Error(),
+		})
+		http.Error(w, "Failed to create response", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(jsonData)
+}
+
+func (p *PostHandlers) GetByAuthorIDHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "GET" {
+		p.log.Log("http_method_not_allowed", map[string]any{
+			"method": r.Method,
+		})
+		http.Error(w, "Error! Only GET", http.StatusMethodNotAllowed)
+		return
+	}
+
+	path := r.URL.Path
+	parts := strings.Split(path, "/")
+	if len(parts) != 4 || parts[1] != "authors" || parts[3] != "posts" {
+		p.log.Log("http_invalid_author_posts_path", map[string]any{
+			"path": path,
+		})
+		http.Error(w, "Invalid path. Use /authors/{id}/posts", http.StatusBadRequest)
+		return
+	}
+
+	authorID, err := strconv.Atoi(parts[2])
+	if err != nil || authorID <= 0 {
+		p.log.Log("http_invalid_author_id", map[string]any{
+			"value": parts[2],
+		})
+		http.Error(w, "Invalid author ID", http.StatusBadRequest)
+		return
+	}
+
+	posts, err := p.postService.GetPostsByAuthorID(authorID)
+	if err != nil {
+		p.log.Log("get_posts_by_author_failed", map[string]any{
+			"author_id": authorID,
+			"error":     err.Error(),
+		})
+		http.Error(w, "Failed to get posts", http.StatusInternalServerError)
+		return
+	}
+
+	p.log.Log("posts_by_author_fetched", map[string]any{
+		"author_id": authorID,
+		"count":     len(posts),
+	})
+
+	response := map[string]interface{}{
+		"message":   "Posts retrieved successfully",
+		"author_id": authorID,
+		"count":     len(posts),
+		"posts":     posts,
+	}
+
+	jsonData, err := json.Marshal(response)
+	if err != nil {
+		p.log.Log("http_response_marshal_error", map[string]any{
+			"author_id": authorID,
+			"error":     err.Error(),
+		})
+		http.Error(w, "Failed to create response", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(jsonData)
+
 }

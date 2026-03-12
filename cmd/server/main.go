@@ -5,15 +5,18 @@ import (
 	"microblog/internal/handlers"
 	"microblog/internal/logger"
 	"microblog/internal/queue"
+	"microblog/internal/repository"
 	"microblog/internal/service"
-	"microblog/internal/storage"
 	"net/http"
+	"os"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"context"
 
 	_ "net/http/pprof"
 )
 
 const (
-	ServerPort = ":9091"
+	ServerPort = ":8080"
 )
 
 func main() {
@@ -25,16 +28,41 @@ func main() {
 		"port":    ServerPort,
 	})
 
-	storage := storage.NewObjectStorage()
-	log.Log("storage_init", nil)
+	databaseURL := os.Getenv("DATABASE_URL")
+	if databaseURL == "" {
+		log.Log("db_error", map[string]any{
+			"error": "DATABASE_URL not set",
+		})
+		panic("DATABASE_URL not set")
+	}
 
-	userService := service.NewUserService(storage, log)
+	ctx := context.Background()
+
+	dbPool, err := pgxpool.New(ctx, databaseURL)
+	if err != nil {
+		log.Log("db_connection_failed", map[string]any{
+			"error": err.Error(),
+		})
+		panic(err)
+	}
+	defer dbPool.Close()
+
+	log.Log("db_connected", nil)
+
+	userRepo := repository.NewUserRepository(dbPool)
+	postRepo := repository.NewPostRepository(dbPool)
+	likeRepo := repository.NewLikeRepository(dbPool)
+
+	// storage := storage.NewObjectStorage()
+	// log.Log("storage_init", nil)
+
+	userService := service.NewUserService(userRepo, log)
 	log.Log("user_service_init", nil)
 
-	postService := service.NewPostService(storage, log)
+	postService := service.NewPostService(postRepo, log)
 	log.Log("post_service_init", nil)
 
-	likeService := queue.NewLikeService(storage, 1000)
+	likeService := queue.NewLikeService(likeRepo, 1000)
 	log.Log("like_service_init", map[string]any{
 		"buffer": 1000,
 	})
@@ -64,7 +92,7 @@ func main() {
 		}
 	}()
 
-	err := http.ListenAndServe(ServerPort, nil)
+	err = http.ListenAndServe(ServerPort, nil)
 	if err != nil {
 		log.Log("server_error", map[string]any{
 			"error": err.Error(),

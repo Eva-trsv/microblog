@@ -47,7 +47,7 @@ func TestLikePostRace(t *testing.T) {
 	likeService.StartWorker()
 	defer likeService.StopWorker()
 
-	post, _ := postService.CreatePost("Eva", "Race test post")
+	post, _ := postService.CreatePost(1, "Race test post")
 
 	var wg sync.WaitGroup
 	numLikes := 100
@@ -85,7 +85,7 @@ func TestCreatePostRace(t *testing.T) {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			_, _ = postService.CreatePost("User"+strconv.Itoa(i), "пост"+strconv.Itoa(i))
+			_, _ = postService.CreatePost(+1, "пост"+strconv.Itoa(i))
 		}(i)
 	}
 	wg.Wait()
@@ -99,7 +99,7 @@ func TestGetPostByIdRace(t *testing.T) {
 
 	postService := service.NewPostService(storage, log)
 
-	post, _ := postService.CreatePost("Eva", "Race test post")
+	post, _ := postService.CreatePost(1, "Race test post")
 
 	var wg sync.WaitGroup
 	numReaders := 100

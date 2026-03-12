@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"fmt"
 	"microblog/internal/logger"
 	"microblog/internal/models"
@@ -19,15 +20,21 @@ const (
 )
 
 type PostStorage interface {
-	CreatePost(post models.Post) (*models.Post, error)
-	GetPosts() ([]models.Post, error)
-	GetPostById(id int) (*models.Post, error)
-	LikePost(postID int) error
+	Create(ctx context.Context, post *models.Post) error
+	GetByAuthorID(ctx context.Context, authorID int) ([]*models.Post, error)
+	Delete(ctx context.Context, postID int) error
+	GetPostByID(ctx context.Context, postID int) (*models.Post, error)
 }
 
 type UserStorage interface {
-	CreateUser(user models.User) error
-	GetUserByEmail(email string) (*models.User, error)
+	Create(ctx context.Context, user *models.User) error
+	GetByID(ctx context.Context, id int) (*models.User, error)
+	GetByEmail(ctx context.Context, email string) (*models.User, error)
+}
+
+type LikeStorage interface {
+	AddLike(ctx context.Context, userID, postID int) error
+	CountLikes(ctx context.Context, postID int) (int, error)
 }
 
 type PostService struct {
@@ -59,16 +66,9 @@ func (s *PostService) SetLikeService(likeService *queue.LikeService) {
 	s.likeService = likeService
 }
 
-func (s *PostService) CreatePost(author, content string) (*models.Post, error) {
-	author = strings.TrimSpace(author)
-	if author == "" {
-		return nil, fmt.Errorf("author is required")
-	}
-	if len(author) < MinAuthorLength {
-		return nil, fmt.Errorf("author name must be at least %d characters", MinAuthorLength)
-	}
-	if len(author) > MaxAuthorLength {
-		return nil, fmt.Errorf("author name too long (max %d characters)", MaxAuthorLength)
+func (s *PostService) CreatePost(author_id int, content string) (*models.Post, error) {
+	if author_id <= 0 {
+		return nil, fmt.Errorf("invalid author id")
 	}
 
 	content = strings.TrimSpace(content)
@@ -82,60 +82,69 @@ func (s *PostService) CreatePost(author, content string) (*models.Post, error) {
 		return nil, fmt.Errorf("content too long (max %d characters)", MaxContentLength)
 	}
 
-	post := models.Post{
-		Author:    author,
+	post := &models.Post{
+		AuthorID:  author_id,
 		Content:   content,
 		LikeCount: 0,
 	}
 
-	createdPost, err := s.storage.CreatePost(post)
+	err := s.storage.Create(context.Background(), post)
 	if err != nil {
-		s.log.Log("post_create_error", map[string]any{"error": err.Error(), "author": author})
+		s.log.Log("post_create_error", map[string]any{"error": err.Error(), "author_id": author_id})
 		return nil, fmt.Errorf("failed to create post: %w", err)
 	}
-	s.log.Log("post_created", map[string]any{"post_id": createdPost.ID, "author": author})
-	return createdPost, nil
-}
-
-func (s *PostService) GetPostById(id int) (*models.Post, error) {
-	if id <= 0 {
-		err := fmt.Errorf("invalid post ID")
-		s.log.Log("post_get_error", map[string]any{"error": err.Error(), "post_id": id})
-		return nil, err
-	}
-
-	post, err := s.storage.GetPostById(id)
-	if err != nil {
-		s.log.Log("post_get_error", map[string]any{"error": err.Error(), "post_id": id})
-		return nil, fmt.Errorf("post not found: %w", err)
-	}
-
-	s.log.Log("post_fetched", map[string]any{"post_id": id})
+	s.log.Log("post_created", map[string]any{"post_id": post.ID, "author_id": author_id})
 	return post, nil
 }
 
-func (s *PostService) GetAllPosts() ([]models.Post, error) {
-	posts, err := s.storage.GetPosts()
+func (s *PostService) GetPostsByAuthorID(authorID int) ([]*models.Post, error) {
+	posts, err := s.storage.GetByAuthorID(context.Background(), authorID)
 	if err != nil {
-		s.log.Log("posts_get_error", map[string]any{"error": err.Error()})
+		s.log.Log("posts_get_error", map[string]any{
+			"error":     err.Error(),
+			"author_id": authorID,
+		})
 		return nil, fmt.Errorf("failed to get posts: %w", err)
 	}
 
-	s.log.Log("posts_fetched", map[string]any{"count": len(posts)})
+	s.log.Log("posts_fetched", map[string]any{"count": len(posts), "author_id": authorID})
 	return posts, nil
 }
 
-func (s *PostService) LikePost(postID int) (string, error) {
-	if postID <= 0 {
-		err := fmt.Errorf("invalid post ID")
-		s.log.Log("like_error", map[string]any{"error": err.Error(), "post_id": postID})
-		return "", fmt.Errorf("invalid post ID")
+func (s *PostService) GetPostByID(postID int) (*models.Post, error) {
+	post, err := s.storage.GetPostByID(context.Background(), postID)
+	if err != nil {
+		s.log.Log("posts_get_error", map[string]any{"error": err.Error(), "post_id": postID})
+		return nil, fmt.Errorf("failed to get posts: %w", err)
 	}
 
-	_, err := s.storage.GetPostById(postID)
+	s.log.Log("posts_fetched", map[string]any{
+		"author_id": post.AuthorID,
+		"post_id":   postID,
+	})
+	return post, nil
+}
+
+func (s *PostService) DeletePost(postID int) error {
+	if postID <= 0 {
+		return fmt.Errorf("invalid post ID")
+	}
+
+	err := s.storage.Delete(context.Background(), postID)
 	if err != nil {
-		s.log.Log("like_error", map[string]any{"error": err.Error(), "post_id": postID})
-		return "", fmt.Errorf("post not found: %w", err)
+		s.log.Log("post_delete_error", map[string]any{"error": err.Error(), "post_id": postID})
+		return fmt.Errorf("failed to delete post: %w", err)
+	}
+
+	s.log.Log("post_deleted", map[string]any{"post_id": postID})
+	return nil
+}
+
+func (s *PostService) LikePost(userID, postID int) (string, error) {
+	if postID <= 0 || userID <= 0 {
+		err := fmt.Errorf("invalid post ID")
+		s.log.Log("like_error", map[string]any{"error": err.Error(), "post_id": postID, "user_id": userID})
+		return "", fmt.Errorf("invalid post ID")
 	}
 
 	if s.likeService == nil {
@@ -144,14 +153,14 @@ func (s *PostService) LikePost(postID int) (string, error) {
 		return "", err
 	}
 
-	s.likeService.EnqueueLike(postID)
-	s.log.Log("like_queued", map[string]any{"post_id": postID})
+	s.likeService.EnqueueLike(userID, postID)
+	s.log.Log("like_queued", map[string]any{"post_id": postID, "user_id": userID})
 	return "like queued", nil
 }
 
 // USER SERVICE
 
-func (s *UserService) RegisterUser(username, email string) (*models.User, error) {
+func (s *UserService) CreateUser(username, email string) (*models.User, error) {
 	username = strings.TrimSpace(username)
 	if username == "" {
 		return nil, fmt.Errorf("username is required")
@@ -175,7 +184,7 @@ func (s *UserService) RegisterUser(username, email string) (*models.User, error)
 		return nil, err
 	}
 
-	existingUser, err := s.storage.GetUserByEmail(email)
+	existingUser, err := s.storage.GetByEmail(context.Background(), email)
 	if err != nil {
 		s.log.Log("user_register_error", map[string]any{"error": err.Error(), "email": email})
 		return nil, fmt.Errorf("error checking email: %w", err)
@@ -188,19 +197,20 @@ func (s *UserService) RegisterUser(username, email string) (*models.User, error)
 		return nil, fmt.Errorf("email already registered")
 	}
 
-	user := models.User{
+	user := &models.User{
 		Username: username,
 		Email:    email,
 	}
 
-	err = s.storage.CreateUser(user)
+	err = s.storage.Create(context.Background(), user)
 	if err != nil {
 		s.log.Log("user_register_error", map[string]any{"error": err.Error(), "username": username})
+		return nil, err
 	}
 
-	createdUser, err := s.storage.GetUserByEmail(email)
+	createdUser, err := s.storage.GetByEmail(context.Background(), email)
 	if err != nil {
-		s.log.Log("user_register_error", map[string]any{"error": err.Error(), "emai": username})
+		s.log.Log("user_register_error", map[string]any{"error": err.Error(), "emai": email})
 		return nil, fmt.Errorf("failed to get created user: %w", err)
 	}
 
@@ -216,7 +226,7 @@ func (s *UserService) GetUserByEmail(email string) (*models.User, error) {
 		return nil, err
 	}
 
-	user, err := s.storage.GetUserByEmail(email)
+	user, err := s.storage.GetByEmail(context.Background(), email)
 	if err != nil {
 		s.log.Log("user_get_error", map[string]any{"error": err.Error(), "email": email})
 		return nil, fmt.Errorf("error getting user: %w", err)
@@ -229,5 +239,34 @@ func (s *UserService) GetUserByEmail(email string) (*models.User, error) {
 	}
 
 	s.log.Log("user_fetched", map[string]any{"email": email})
+	return user, nil
+}
+
+func (s *UserService) GetUserByID(id int) (*models.User, error) {
+	if id <= 0 {
+		err := fmt.Errorf("invalid user id")
+		s.log.Log("user_get_error", map[string]any{"error": err.Error(), "id": id})
+		return nil, err
+	}
+
+	user, err := s.storage.GetByID(context.Background(), id)
+	if err != nil {
+		s.log.Log("user_get_error", map[string]any{
+			"error": err.Error(),
+			"id":    id,
+		})
+		return nil, fmt.Errorf("error getting user: %w", err)
+	}
+
+	if user == nil {
+		err := fmt.Errorf("user not found")
+		s.log.Log("user_get_error", map[string]any{
+			"error": err.Error(),
+			"id":    id,
+		})
+		return nil, err
+	}
+
+	s.log.Log("user_fetched", map[string]any{"id": id})
 	return user, nil
 }

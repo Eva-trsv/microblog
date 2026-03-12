@@ -35,7 +35,7 @@ func BenchmarkCreatePost(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		_, _ = postService.CreatePost("Eva", "Мой первый bench")
+		_, _ = postService.CreatePost(1, "Мой первый bench")
 	}
 
 }
@@ -53,7 +53,7 @@ func BenchmarkLargeTextCreateAndRead(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		post, err := postService.CreatePost("Eva", largeText)
+		post, err := postService.CreatePost(1, largeText)
 		if err != nil {
 			b.Fatalf("failed to create post: %v", err)
 		}
@@ -73,7 +73,7 @@ func BenchmarkGetPostById(b *testing.B) {
 
 	postService := service.NewPostService(storage, log)
 
-	post, _ := postService.CreatePost("Eva", "Benchmark post")
+	post, _ := postService.CreatePost(1, "Benchmark post")
 
 	b.ResetTimer()
 
@@ -91,7 +91,7 @@ func BenchmarkGetAllPosts(b *testing.B) {
 	postService := service.NewPostService(storage, log)
 
 	for i := 0; i < 100; i++ {
-		postService.CreatePost("Eva", "Benchmark post")
+		postService.CreatePost(1, "Benchmark post")
 	}
 
 	b.ResetTimer()
@@ -114,7 +114,7 @@ func BenchmarkLikePost(b *testing.B) {
 	likeService.StartWorker()
 	defer likeService.StopWorker()
 
-	post, _ := postService.CreatePost("Eva", "Benchmark like post")
+	post, _ := postService.CreatePost(1, "Benchmark like post")
 
 	b.ResetTimer()
 

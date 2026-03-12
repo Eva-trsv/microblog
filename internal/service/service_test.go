@@ -56,17 +56,17 @@ func TestCreatePost(t *testing.T) {
 
 	postService := service.NewPostService(storage, log)
 
-	post, err := postService.CreatePost("Eva", "Мой первый пост")
+	post, err := postService.CreatePost(1, "Мой первый пост")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if post.Author == "" {
+	if post.AuthorID == 0 {
 		t.Error("the author is empty")
 	}
 
-	if post.Author != "Eva" {
-		t.Errorf("expected username 'Eva', got %s", post.Author)
+	if post.AuthorID != 1 {
+		t.Errorf("expected authorID 1, got %d", post.AuthorID)
 	}
 
 	if post.Content == "" {
@@ -94,8 +94,8 @@ func TestGetAllPosts(t *testing.T) {
 
 	postService := service.NewPostService(storage, log)
 
-	postService.CreatePost("Eva", "Мой первый пост")
-	postService.CreatePost("Alice", "Мой dnjhjq пост")
+	postService.CreatePost(1, "Мой первый пост")
+	postService.CreatePost(2, "Мой dnjhjq пост")
 
 	posts, err := postService.GetAllPosts()
 	if err != nil {
@@ -115,13 +115,13 @@ func TestGetPostById(t *testing.T) {
 
 	postService := service.NewPostService(storage, log)
 
-	post, _ := postService.CreatePost("Eva", "Тестовый пост")
+	post, _ := postService.CreatePost(1, "Тестовый пост")
 
 	got, err := postService.GetPostById(post.ID)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if got.ID != post.ID || got.Author != "Eva" || got.Content != "Тестовый пост" {
+	if got.ID != post.ID || got.AuthorID != 1 || got.Content != "Тестовый пост" {
 		t.Errorf("post data mismatch: got %+v", got)
 	}
 
@@ -144,7 +144,7 @@ func TestLikePost(t *testing.T) {
 	likeService.StartWorker()
 	defer likeService.StopWorker()
 
-	post, _ := postService.CreatePost("Eva", "Test post")
+	post, _ := postService.CreatePost(1, "Test post")
 
 	msg, err := postService.LikePost(post.ID)
 	if err != nil {

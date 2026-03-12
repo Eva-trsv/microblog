@@ -8,7 +8,7 @@ type User struct {
 
 type Post struct {
 	ID      int    `json:"id"`
-	Author  string `json:"author"`
+	AuthorID  int `json:"author_id"`
 	Content string `json:"content"`
 	LikeCount    int    `json:"like"`
 }
