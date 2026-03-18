@@ -140,7 +140,7 @@ func (s *PostService) DeletePost(postID int) error {
 	return nil
 }
 
-func (s *PostService) LikePost(userID, postID int) (string, error) {
+func (s *PostService) LikePost(postID, userID int) (string, error) {
 	if postID <= 0 || userID <= 0 {
 		err := fmt.Errorf("invalid post ID")
 		s.log.Log("like_error", map[string]any{"error": err.Error(), "post_id": postID, "user_id": userID})
