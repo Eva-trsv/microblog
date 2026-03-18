@@ -17,7 +17,7 @@ CREATE TABLE posts_2025
   PARTITION OF posts
   FOR VALUES FROM ('2025-01-01') TO ('2026-01-01');
   
-CREATE INDEX idx_posts_author_id
+CREATE INDEX IF NOT EXISTS idx_posts_author_id
 ON posts(author_id);
 
 INSERT INTO posts (id, author_id, content, like_count, created_at)
