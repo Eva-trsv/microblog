@@ -193,20 +193,17 @@ func (p *PostHandlers) DeleteHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	path := r.URL.Path
-	parts := strings.Split(path, "/")
-	if len(parts) != 3 || parts[1] != "posts" {
-		p.log.Log("http_invalid_delete_path", map[string]any{
-			"path": path,
-		})
-		http.Error(w, "Invalid path. Use /posts/{id}", http.StatusBadRequest)
+	idStr := r.URL.Query().Get("id")
+	if idStr == "" {
+		p.log.Log("http_missing_post_id", nil)
+		http.Error(w, "Missing post ID", http.StatusBadRequest)
 		return
 	}
 
-	postID, err := strconv.Atoi(parts[2])
+	postID, err := strconv.Atoi(idStr)
 	if err != nil || postID <= 0 {
 		p.log.Log("http_invalid_post_id", map[string]any{
-			"value": parts[2],
+			"value": idStr,
 		})
 		http.Error(w, "Invalid post ID", http.StatusBadRequest)
 		return
