@@ -21,7 +21,7 @@ CREATE INDEX IF NOT EXISTS idx_posts_author_id
 ON posts(author_id);
 
 INSERT INTO posts (id, author_id, content, like_count, created_at)
-SELECT id, author_id, content, like_count, created_at
+SELECT id, author_id, content, like_count, now()
 FROM posts_old;
 
 SELECT setval('posts_id_seq', (SELECT MAX(id) FROM posts));
@@ -46,7 +46,7 @@ CREATE TABLE posts (
 );
 
 INSERT INTO posts (id, author_id, content, like_count, created_at)
-SELECT id, author_id, content, like_count, now()
+SELECT id, author_id, content, like_count, created_at
 FROM posts_partitioned;
 
 SELECT setval('posts_id_seq', (SELECT MAX(id) FROM posts));
