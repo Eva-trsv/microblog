@@ -1,0 +1,11 @@
+-- +goose Up
+CREATE TABLE IF NOT EXISTS posts_2026
+  PARTITION OF posts
+  FOR VALUES FROM ('2026-01-01') TO ('2027-01-01');
+
+CREATE TABLE IF NOT EXISTS posts_default 
+  PARTITION OF posts DEFAULT;
+
+-- +goose Down
+DROP TABLE IF EXISTS posts_2026;
+DROP TABLE IF EXISTS posts_default;
