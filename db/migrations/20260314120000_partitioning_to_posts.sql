@@ -26,7 +26,7 @@ FROM posts_old;
 
 SELECT setval('posts_id_seq', (SELECT MAX(id) FROM posts));
 
-DROP TABLE posts_old;
+DROP TABLE posts_old CASCADE;
 
 ALTER TABLE posts ADD CONSTRAINT posts_author_id_fkey 
     FOREIGN KEY (author_id) REFERENCES users(id);
