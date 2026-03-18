@@ -19,7 +19,7 @@ func SetupRoutes(userService *service.UserService, postService *service.PostServ
 	http.HandleFunc("/posts/create", postHandlers.CreatePostHandler)
 
 	http.HandleFunc("/authors/", postHandlers.GetByAuthorIDHandler)
-	http.HandleFunc("/posts/", postHandlers.DeleteHandler)
+	http.HandleFunc("/posts/delete", postHandlers.DeleteHandler)
 	http.HandleFunc("/like/", postHandlers.LikeHandler)
 
 }
