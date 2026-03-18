@@ -2,7 +2,10 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"microblog/internal/models"
+
+	"github.com/jackc/pgx/v5"
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -54,7 +57,7 @@ func (r *UserRepository) GetByID(ctx context.Context, id int) (*models.User, err
 
 func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*models.User, error) {
 	user := &models.User{}
-	
+
 	query, args, err := sq.
 		Select("id", "username", "email").
 		From("users").
@@ -67,6 +70,9 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*models.
 
 	err = r.db.QueryRow(ctx, query, args...).Scan(&user.ID, &user.Username, &user.Email)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
 		return nil, err
 	}
 
