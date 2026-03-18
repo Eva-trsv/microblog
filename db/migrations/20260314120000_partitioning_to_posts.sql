@@ -46,7 +46,7 @@ CREATE TABLE posts (
 );
 
 INSERT INTO posts (id, author_id, content, like_count, created_at)
-SELECT id, author_id, content, like_count, created_at
+SELECT id, author_id, content, like_count, now()
 FROM posts_partitioned;
 
 SELECT setval('posts_id_seq', (SELECT MAX(id) FROM posts));
