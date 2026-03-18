@@ -309,3 +309,55 @@ func (p *PostHandlers) GetByAuthorIDHandler(w http.ResponseWriter, r *http.Reque
 	w.Write(jsonData)
 
 }
+
+func (p *PostHandlers) GetPostByIDHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		p.log.Log("http_method_not_allowed", map[string]any{
+			"method": r.Method,
+		})
+		http.Error(w, "Error! Only GET allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	idStr := r.URL.Query().Get("id")
+	if idStr == "" {
+		http.Error(w, "Missing post ID", http.StatusBadRequest)
+		return
+	}
+
+	postID, err := strconv.Atoi(idStr)
+	if err != nil {
+		http.Error(w, "Invalid post ID", http.StatusBadRequest)
+		return
+	}
+
+	post, err := p.postService.GetPostByID(postID)
+	if err != nil {
+		p.log.Log("get_post_failed", map[string]any{
+			"post_id": postID,
+			"error":   err.Error(),
+		})
+		http.Error(w, "Post not found", http.StatusNotFound)
+		return
+	}
+
+	response := map[string]interface{}{
+		"post_id":    post.ID,
+		"author_id":  post.AuthorID,
+		"content":    post.Content,
+		"like_count": post.LikeCount,
+	}
+
+	jsonData, err := json.Marshal(response)
+	if err != nil {
+		p.log.Log("http_response_marshal_error", map[string]any{
+			"error": err.Error(),
+		})
+		http.Error(w, "Failed to create response", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	w.Write(jsonData)
+}
