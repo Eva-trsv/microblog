@@ -10,19 +10,22 @@ import (
 
 type PostRepository struct {
 	db *pgxpool.Pool
+	builder sq.StatementBuilderType
 }
 
 func NewPostRepository(db *pgxpool.Pool) *PostRepository {
-	return &PostRepository{db: db}
+	return &PostRepository{
+		db: db,
+		builder: sq.StatementBuilder.PlaceholderFormat(sq.Dollar),
+	}
 }
 
 func (r *PostRepository) Create(ctx context.Context, post *models.Post) error {
-	query, args, err := sq.
+	query, args, err := r.builder.
 		Insert("posts").
 		Columns("author_id", "content", "like_count").
 		Values(post.AuthorID, post.Content, post.LikeCount).
 		Suffix("RETURNING id").
-		PlaceholderFormat(sq.Dollar).
 		ToSql()
 
 	if err != nil {
@@ -33,11 +36,10 @@ func (r *PostRepository) Create(ctx context.Context, post *models.Post) error {
 }
 
 func (r *PostRepository) GetByAuthorID(ctx context.Context, authorID int) ([]*models.Post, error) {
-	query, args, err := sq.
+	query, args, err := r.builder.
 		Select("id", "author_id", "content", "like_count").
 		From("posts").
 		Where(sq.Eq{"author_id": authorID}).
-		PlaceholderFormat(sq.Dollar).
 		ToSql()
 	if err != nil {
 		return nil, err
@@ -62,11 +64,10 @@ func (r *PostRepository) GetByAuthorID(ctx context.Context, authorID int) ([]*mo
 }
 
 func (r *PostRepository) GetPostByID(ctx context.Context, postID int) (*models.Post, error) {
-	query, args, err := sq.
+	query, args, err := r.builder.
 		Select("id", "author_id", "content", "like_count").
 		From("posts").
 		Where(sq.Eq{"id": postID}).
-		PlaceholderFormat(sq.Dollar).
 		ToSql()
 	if err != nil {
 		return nil, err
@@ -82,10 +83,9 @@ func (r *PostRepository) GetPostByID(ctx context.Context, postID int) (*models.P
 }
 
 func (r *PostRepository) Delete(ctx context.Context, postID int) error {
-	query, args, err := sq.
+	query, args, err := r.builder.
 		Delete("posts").
 		Where(sq.Eq{"id": postID}).
-		PlaceholderFormat(sq.Dollar).
 		ToSql()
 	if err != nil {
 		return err

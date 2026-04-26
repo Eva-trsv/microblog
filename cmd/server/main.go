@@ -7,38 +7,40 @@ import (
 	"microblog/internal/queue"
 	"microblog/internal/repository"
 	"microblog/internal/service"
+	"microblog/internal/config"
 	"net/http"
-	"os"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"context"
+	"time"
 
 	_ "net/http/pprof"
 )
 
 const (
 	ServerPort = ":8080"
+	timeDb = 5
+	PprofPort = ":6060"	//время подключения к бд
+	chLikeService = 1000
 )
 
 func main() {
+
+
 	log := logger.NewLogger(500)
 	defer log.Close()
 
-	log.Log("app_start", map[string]any{
-		"version": "1.0",
-		"port":    ServerPort,
-	})
-
-	databaseURL := os.Getenv("DATABASE_URL")
-	if databaseURL == "" {
+	cfg := config.Load()
+	if cfg.DatabaseURL == "" {
 		log.Log("db_error", map[string]any{
 			"error": "DATABASE_URL not set",
 		})
-		panic("DATABASE_URL not set")
+		return
 	}
 
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), timeDb * time.Second)
+	defer cancel()
 
-	dbPool, err := pgxpool.New(ctx, databaseURL)
+	dbPool, err := pgxpool.New(ctx, cfg.DatabaseURL)
 	if err != nil {
 		log.Log("db_connection_failed", map[string]any{
 			"error": err.Error(),
@@ -53,20 +55,19 @@ func main() {
 	postRepo := repository.NewPostRepository(dbPool)
 	likeRepo := repository.NewLikeRepository(dbPool)
 
-	// storage := storage.NewObjectStorage()
-	// log.Log("storage_init", nil)
 
 	userService := service.NewUserService(userRepo, log)
 	log.Log("user_service_init", nil)
 
-	postService := service.NewPostService(postRepo, log)
-	log.Log("post_service_init", nil)
+	
 
-	likeService := queue.NewLikeService(likeRepo, 1000)
+	likeService := queue.NewLikeService(likeRepo, chLikeService)
 	log.Log("like_service_init", map[string]any{
 		"buffer": 1000,
 	})
-
+	
+	postService := service.NewPostService(postRepo, log)
+	log.Log("post_service_init", nil)
 	postService.SetLikeService(likeService)
 
 	likeService.StartWorker()
@@ -84,7 +85,7 @@ func main() {
 
 	go func() {
 		fmt.Println("Pprof будет доступен по адресу :6060/debug/pprof/")
-		if err := http.ListenAndServe(":6060", nil); err != nil {
+		if err := http.ListenAndServe(PprofPort, nil); err != nil {
 			log.Log("pprof_error", map[string]any{
 				"error": err.Error(),
 			})

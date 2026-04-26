@@ -9,6 +9,7 @@ import (
 
 type LikeRepository struct {
 	db *pgxpool.Pool
+	builder sq.StatementBuilderType
 }
 
 func (r *LikeRepository) DB() *pgxpool.Pool {
@@ -16,16 +17,18 @@ func (r *LikeRepository) DB() *pgxpool.Pool {
 }
 
 func NewLikeRepository(db *pgxpool.Pool) *LikeRepository {
-	return &LikeRepository{db: db}
+	return &LikeRepository{
+		db: db,
+		builder: sq.StatementBuilder.PlaceholderFormat(sq.Dollar),
+	}
 }
 
 func (r *LikeRepository) AddLike(ctx context.Context, tx pgx.Tx, userID, postID int) error {
 
-	insertQuery, insertArgs, err := sq.
+	insertQuery, insertArgs, err := r.builder.
 		Insert("likes").
 		Columns("user_id", "post_id").
 		Values(userID, postID).
-		PlaceholderFormat(sq.Dollar).
 		ToSql()
 	if err != nil {
 		return err
@@ -36,11 +39,10 @@ func (r *LikeRepository) AddLike(ctx context.Context, tx pgx.Tx, userID, postID 
 		return err
 	}
 
-	updateQuery, updateArgs, err := sq.
+	updateQuery, updateArgs, err := r.builder.
 		Update("posts").
 		Set("like_count", sq.Expr("like_count + 1")).
 		Where(sq.Eq{"id": postID}).
-		PlaceholderFormat(sq.Dollar).
 		ToSql()
 	if err != nil {
 		return err
@@ -56,11 +58,10 @@ func (r *LikeRepository) AddLike(ctx context.Context, tx pgx.Tx, userID, postID 
 
 func (r *LikeRepository) CountLikes(ctx context.Context, tx pgx.Tx, userID, postID int) (int, error) {
 	var count int
-	query, args, err := sq.
+	query, args, err := r.builder.
 		Select("COUNT(*)").
 		From("likes").
 		Where(sq.Eq{"post_id": postID}).
-		PlaceholderFormat(sq.Dollar).
 		ToSql()
 	if err != nil {
 		return 0, err

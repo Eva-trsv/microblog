@@ -10,6 +10,10 @@ import (
 	"strings"
 )
 
+const (
+	urlParts = 3 //кол-во частей после разделения url
+)
+
 type PostHandlers struct {
 	postService *service.PostService
 	log         *logger.Logger
@@ -108,7 +112,7 @@ func (p *PostHandlers) LikeHandler(w http.ResponseWriter, r *http.Request) {
 
 	path := r.URL.Path
 	parts := strings.Split(path, "/")
-	if len(parts) != 3 {
+	if len(parts) != urlParts {
 		p.log.Log("http_invalid_like_path", map[string]any{
 			"path": path,
 		})

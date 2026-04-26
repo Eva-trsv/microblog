@@ -13,19 +13,22 @@ import (
 
 type UserRepository struct {
 	db *pgxpool.Pool
+	builder sq.StatementBuilderType
 }
 
 func NewUserRepository(db *pgxpool.Pool) *UserRepository {
-	return &UserRepository{db: db}
+	return &UserRepository{
+		db: db,
+		builder: sq.StatementBuilder.PlaceholderFormat(sq.Dollar),
+	}
 }
 
 func (r *UserRepository) Create(ctx context.Context, user *models.User) error {
-	query, args, err := sq.
+	query, args, err := r.builder.
 		Insert("users").
 		Columns("username", "email").
 		Values(user.Username, user.Email).
 		Suffix("RETURNING id").
-		PlaceholderFormat(sq.Dollar).
 		ToSql()
 
 	if err != nil {
@@ -37,11 +40,10 @@ func (r *UserRepository) Create(ctx context.Context, user *models.User) error {
 
 func (r *UserRepository) GetByID(ctx context.Context, id int) (*models.User, error) {
 	user := &models.User{}
-	query, args, err := sq.
+	query, args, err := r.builder.
 		Select("id", "username", "email").
 		From("users").
 		Where(sq.Eq{"id": id}).
-		PlaceholderFormat(sq.Dollar).
 		ToSql()
 	if err != nil {
 		return nil, err
@@ -58,11 +60,10 @@ func (r *UserRepository) GetByID(ctx context.Context, id int) (*models.User, err
 func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*models.User, error) {
 	user := &models.User{}
 
-	query, args, err := sq.
+	query, args, err := r.builder.
 		Select("id", "username", "email").
 		From("users").
 		Where(sq.Eq{"email": email}).
-		PlaceholderFormat(sq.Dollar).
 		ToSql()
 	if err != nil {
 		return nil, err

@@ -38,6 +38,7 @@ func (s *LikeService) StartWorker() {
 				log.Println("failed to begin tx:", err)
 				continue
 			}
+			defer tx.Rollback(ctx)
 
 			err = s.likeRepo.AddLike(ctx, tx, task.UserID, task.PostID)
 			if err != nil {
