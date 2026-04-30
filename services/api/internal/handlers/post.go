@@ -3,8 +3,8 @@ package handlers
 import (
 	"encoding/json"
 	"io"
-	"microblog/internal/logger"
-	"microblog/internal/service"
+	"microblog/services/api/internal/logger"
+	"microblog/services/api/internal/service"
 	"net/http"
 	"strconv"
 	"strings"
@@ -63,7 +63,7 @@ func (p *PostHandlers) CreatePostHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	post, err := p.postService.CreatePost(request.AuthorID, request.Content)
+	post, err := p.postService.CreatePost(request.AuthorID, request.Content, " ")
 	if err != nil {
 		p.log.Log("create_post_failed", map[string]any{
 			"author": request.AuthorID,

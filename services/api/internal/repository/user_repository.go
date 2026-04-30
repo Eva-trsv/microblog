@@ -3,7 +3,7 @@ package repository
 import (
 	"context"
 	"errors"
-	"microblog/internal/models"
+	"microblog/services/api/internal/models"
 
 	"github.com/jackc/pgx/v5"
 

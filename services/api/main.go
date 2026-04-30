@@ -2,12 +2,13 @@ package main
 
 import (
 	"fmt"
-	"microblog/internal/handlers"
-	"microblog/internal/logger"
-	"microblog/internal/queue"
-	"microblog/internal/repository"
-	"microblog/internal/service"
-	"microblog/internal/config"
+	"microblog/services/api/internal/handlers"
+	"microblog/services/api/internal/logger"
+	"microblog/services/api/internal/queue"
+	"microblog/services/api/internal/repository"
+	"microblog/services/api/internal/service"
+	"microblog/services/api/internal/config"
+	"microblog/services/api/internal/events"
 	"net/http"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"context"
@@ -23,9 +24,19 @@ const (
 	chLikeService = 1000
 )
 
+type LocalProducer struct{}
+
+func (p *LocalProducer) Publish(ctx context.Context, topic string, event events.Event) error {
+	fmt.Printf("[EVENT] topic=%s event_type=%s event_id=%s payload=%+v\n",
+		topic,
+		event.EventType,
+		event.EventID,
+		event.Payload,
+	)
+	return nil
+}
+
 func main() {
-
-
 	log := logger.NewLogger(500)
 	defer log.Close()
 
@@ -66,7 +77,9 @@ func main() {
 		"buffer": 1000,
 	})
 	
-	postService := service.NewPostService(postRepo, log)
+	producer := &LocalProducer{}
+	
+	postService := service.NewPostService(postRepo, log, producer)
 	log.Log("post_service_init", nil)
 	postService.SetLikeService(likeService)
 

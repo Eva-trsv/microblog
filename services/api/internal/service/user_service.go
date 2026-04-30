@@ -3,8 +3,8 @@ package service
 import (
 	"context"
 	"fmt"
-	"microblog/internal/logger"
-	"microblog/internal/models"
+	"microblog/services/api/internal/logger"
+	"microblog/services/api/internal/models"
 	"regexp"
 	"strings"
 )

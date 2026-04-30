@@ -1,8 +1,8 @@
 package handlers
 
 import (
-	"microblog/internal/logger"
-	"microblog/internal/service"
+	"microblog/services/api/internal/logger"
+	"microblog/services/api/internal/service"
 	"net/http"
 )
 

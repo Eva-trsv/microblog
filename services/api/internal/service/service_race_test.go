@@ -2,10 +2,10 @@ package service_test
 
 import (
 	"context"
-	"microblog/internal/logger"
-	"microblog/internal/queue"
-	"microblog/internal/repository"
-	"microblog/internal/service"
+	"microblog/services/api/internal/logger"
+	"microblog/services/api/internal/queue"
+	"microblog/services/api/internal/repository"
+	"microblog/services/api/internal/service"
 	"strconv"
 	"sync"
 	"testing"

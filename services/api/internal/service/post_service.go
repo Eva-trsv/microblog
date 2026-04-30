@@ -3,9 +3,10 @@ package service
 import (
 	"context"
 	"fmt"
-	"microblog/internal/logger"
-	"microblog/internal/models"
-	"microblog/internal/queue"
+	"microblog/services/api/internal/logger"
+	"microblog/services/api/internal/models"
+	"microblog/services/api/internal/queue"
+	"microblog/services/api/internal/events"
 	"strings"
 )
 
@@ -34,13 +35,15 @@ type PostService struct {
 	storage     PostStorage
 	likeService *queue.LikeService
 	log         *logger.Logger
+	producer   events.Producer
 }
 
 
-func NewPostService(storage PostStorage, log *logger.Logger) *PostService {
+func NewPostService(storage PostStorage, log *logger.Logger, producer events.Producer) *PostService {
 	return &PostService{
 		storage: storage,
 		log:     log,
+		producer: producer,
 	}
 }
 
@@ -48,7 +51,7 @@ func (s *PostService) SetLikeService(likeService *queue.LikeService) {
 	s.likeService = likeService
 }
 
-func (s *PostService) CreatePost(author_id int, content string) (*models.Post, error) {
+func (s *PostService) CreatePost(author_id int, content string, traceID string) (*models.Post, error) {
 	if author_id <= 0 {
 		return nil, fmt.Errorf("invalid author id")
 	}
@@ -75,7 +78,20 @@ func (s *PostService) CreatePost(author_id int, content string) (*models.Post, e
 		s.log.Log("post_create_error", map[string]any{"error": err.Error(), "author_id": author_id})
 		return nil, fmt.Errorf("failed to create post: %w", err)
 	}
-	s.log.Log("post_created", map[string]any{"post_id": post.ID, "author_id": author_id})
+
+	event := events.NewPostCreatedEvent(post.ID, author_id, content) //добавили событие
+	err = s.producer.Publish(context.Background(), "post_created", event)
+	if err != nil {
+		s.log.Log("event_publish_error", map[string]any{
+			"error":   err.Error(),
+			"post_id": post.ID,
+		})
+		return nil, err
+	}
+
+	s.log.Log("post_created", map[string]any{
+		"post_id": post.ID, 
+		"author_id": author_id})
 	return post, nil
 }
 
@@ -136,6 +152,18 @@ func (s *PostService) LikePost(postID, userID int) (string, error) {
 	}
 
 	s.likeService.EnqueueLike(userID, postID)
+
+	event := events.NewPostLikedEvent(postID, userID) //добавили событие
+	err := s.producer.Publish(context.Background(), "post_liked", event)
+	if err != nil {
+		s.log.Log("event_publish_error", map[string]any{
+			"error":   err.Error(),
+			"post_id": postID,
+			"user_id": userID,
+		})
+		return "", err
+	}
+
 	s.log.Log("like_queued", map[string]any{"post_id": postID, "user_id": userID})
 	return "like queued", nil
 }

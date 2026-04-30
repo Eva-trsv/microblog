@@ -2,7 +2,7 @@ package repository
 
 import (
 	"context"
-	"microblog/internal/models"
+	"microblog/services/api/internal/models"
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v5/pgxpool"

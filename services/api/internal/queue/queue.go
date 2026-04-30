@@ -2,7 +2,7 @@ package queue
 
 import (
 	"context"
-	"microblog/internal/repository"
+	"microblog/services/api/internal/repository"
 	"log"
 )
 
