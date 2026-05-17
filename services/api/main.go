@@ -1,40 +1,33 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"microblog/services/api/internal/config"
+	"microblog/services/api/internal/events"
 	"microblog/services/api/internal/handlers"
 	"microblog/services/api/internal/logger"
 	"microblog/services/api/internal/queue"
-	"microblog/services/api/internal/repository"
+	apiRepository "microblog/services/api/internal/repository"
 	"microblog/services/api/internal/service"
-	"microblog/services/api/internal/config"
-	"microblog/services/api/internal/events"
 	"net/http"
-	"github.com/jackc/pgx/v5/pgxpool"
-	"context"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
+
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	_ "net/http/pprof"
 )
 
 const (
-	ServerPort = ":8080"
-	timeDb = 5
-	PprofPort = ":6060"	//время подключения к бд
+	ServerPort    = ":8080"
+	timeDb        = 5
+	PprofPort     = ":6060"
 	chLikeService = 1000
+	timeServe = 10
 )
-
-type LocalProducer struct{}
-
-func (p *LocalProducer) Publish(ctx context.Context, topic string, event events.Event) error {
-	fmt.Printf("[EVENT] topic=%s event_type=%s event_id=%s payload=%+v\n",
-		topic,
-		event.EventType,
-		event.EventID,
-		event.Payload,
-	)
-	return nil
-}
 
 func main() {
 	log := logger.NewLogger(500)
@@ -42,50 +35,42 @@ func main() {
 
 	cfg := config.Load()
 	if cfg.DatabaseURL == "" {
-		log.Log("db_error", map[string]any{
-			"error": "DATABASE_URL not set",
-		})
+		log.Log("db_error", map[string]any{"error": "DATABASE_URL not set"})
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), timeDb * time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), timeDb*time.Second)
 	defer cancel()
 
 	dbPool, err := pgxpool.New(ctx, cfg.DatabaseURL)
 	if err != nil {
-		log.Log("db_connection_failed", map[string]any{
-			"error": err.Error(),
-		})
+		log.Log("db_connection_failed", map[string]any{"error": err.Error()})
 		panic(err)
 	}
 	defer dbPool.Close()
 
-	log.Log("db_connected", nil)
+	producer := events.NewKafkaProducer(
+		cfg.KafkaBrokers,
+		events.TopicConfig{
+			UserRegistered: cfg.KafkaTopicUserRegistered,
+			PostCreated:    cfg.KafkaTopicPostCreated,
+			PostLiked:      cfg.KafkaTopicPostLiked,
+		},
+		cfg.KafkaWriteTimeout,
+		cfg.KafkaRetries,
+	)
+	defer producer.Close()
 
-	userRepo := repository.NewUserRepository(dbPool)
-	postRepo := repository.NewPostRepository(dbPool)
-	likeRepo := repository.NewLikeRepository(dbPool)
+	userRepo := apiRepository.NewUserRepository(dbPool)
+	postRepo := apiRepository.NewPostRepository(dbPool)
+	likeRepo := apiRepository.NewLikeRepository(dbPool)
 
-
-	userService := service.NewUserService(userRepo, log)
-	log.Log("user_service_init", nil)
-
-	
+	userService := service.NewUserService(userRepo, log, producer)
+	postService := service.NewPostService(postRepo, log, producer)
 
 	likeService := queue.NewLikeService(likeRepo, chLikeService)
-	log.Log("like_service_init", map[string]any{
-		"buffer": 1000,
-	})
-	
-	producer := &LocalProducer{}
-	
-	postService := service.NewPostService(postRepo, log, producer)
-	log.Log("post_service_init", nil)
 	postService.SetLikeService(likeService)
-
 	likeService.StartWorker()
-	log.Log("like_worker_started", nil)
-
 	defer func() {
 		log.Log("like_worker_stopping", nil)
 		likeService.StopWorker()
@@ -94,24 +79,34 @@ func main() {
 	handlers.SetupRoutes(userService, postService, log)
 	log.Log("routes_initialized", nil)
 
-	fmt.Println("Запускаю сервер")
-
 	go func() {
-		fmt.Println("Pprof будет доступен по адресу :6060/debug/pprof/")
+		fmt.Println("Pprof available at :6060/debug/pprof/")
 		if err := http.ListenAndServe(PprofPort, nil); err != nil {
-			log.Log("pprof_error", map[string]any{
-				"error": err.Error(),
-			})
-			fmt.Println("Произошла ошибка:", err.Error())
+			log.Log("pprof_error", map[string]any{"error": err.Error()})
 		}
 	}()
 
-	err = http.ListenAndServe(ServerPort, nil)
-	if err != nil {
-		log.Log("server_error", map[string]any{
-			"error": err.Error(),
-		})
-		fmt.Println("Произошла ошибка:", err.Error())
+	server := &http.Server{Addr: ServerPort}
+	serverErr := make(chan error, 1)
+	go func() {
+		fmt.Println("API server listening on", ServerPort)
+		serverErr <- server.ListenAndServe()
+	}()
+
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
+
+	select {
+	case <-stop:
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), timeServe*time.Second)
+		defer shutdownCancel()
+		if err := server.Shutdown(shutdownCtx); err != nil {
+			log.Log("server_shutdown_error", map[string]any{"error": err.Error()})
+		}
+	case err := <-serverErr:
+		if err != nil && err != http.ErrServerClosed {
+			log.Log("server_error", map[string]any{"error": err.Error()})
+		}
 	}
 
 	log.Log("server_stopped", nil)

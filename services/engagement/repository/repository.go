@@ -4,6 +4,7 @@ import (
 	"context"
 
 	sq "github.com/Masterminds/squirrel"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -34,7 +35,10 @@ func (r *Repository) IsProcessed(ctx context.Context, eventID string) (bool, err
 	var dummy int
 	err = r.db.QueryRow(ctx, query, args...).Scan(&dummy)
 	if err != nil {
-		return false, nil
+		if err == pgx.ErrNoRows {
+			return false, nil
+		}
+		return false, err
 	}
 
 	return true, nil
@@ -46,6 +50,7 @@ func (r *Repository) SaveProcessed(ctx context.Context, eventID string) error {
 		Insert("processed_events").
 		Columns("event_id").
 		Values(eventID).
+		Suffix("ON CONFLICT (event_id) DO NOTHING").
 		ToSql()
 	if err != nil {
 		return err
@@ -55,9 +60,7 @@ func (r *Repository) SaveProcessed(ctx context.Context, eventID string) error {
 	return err
 }
 
-//
 // 🔹 3. Увеличить лайки (UPSERT)
-//
 func (r *Repository) IncrementLike(ctx context.Context, postID int) error {
 	query, args, err := r.builder.
 		Insert("post_like_counters").
@@ -73,9 +76,52 @@ func (r *Repository) IncrementLike(ctx context.Context, postID int) error {
 	return err
 }
 
-//
+func (r *Repository) ProcessPostLiked(ctx context.Context, eventID string, postID int) (bool, error) {
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return false, err
+	}
+	defer tx.Rollback(ctx)
+
+	insertProcessed, insertProcessedArgs, err := r.builder.
+		Insert("processed_events").
+		Columns("event_id").
+		Values(eventID).
+		Suffix("ON CONFLICT (event_id) DO NOTHING").
+		ToSql()
+	if err != nil {
+		return false, err
+	}
+
+	tag, err := tx.Exec(ctx, insertProcessed, insertProcessedArgs...)
+	if err != nil {
+		return false, err
+	}
+	if tag.RowsAffected() == 0 {
+		return false, tx.Commit(ctx)
+	}
+
+	increment, incrementArgs, err := r.builder.
+		Insert("post_like_counters").
+		Columns("post_id", "like_count").
+		Values(postID, 1).
+		Suffix("ON CONFLICT (post_id) DO UPDATE SET like_count = post_like_counters.like_count + 1").
+		ToSql()
+	if err != nil {
+		return false, err
+	}
+
+	if _, err := tx.Exec(ctx, increment, incrementArgs...); err != nil {
+		return false, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
 // 🔹 4. Получить лайки
-//
 func (r *Repository) GetLikes(ctx context.Context, postID int) (int, error) {
 	var count int
 
@@ -90,8 +136,10 @@ func (r *Repository) GetLikes(ctx context.Context, postID int) (int, error) {
 
 	err = r.db.QueryRow(ctx, query, args...).Scan(&count)
 	if err != nil {
+		if err == pgx.ErrNoRows {
+			return 0, nil
+		}
 		return 0, err
 	}
-
 	return count, nil
 }

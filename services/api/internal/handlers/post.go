@@ -33,6 +33,11 @@ func NewPostHandlers(postService *service.PostService, log *logger.Logger) *Post
 }
 
 func (p *PostHandlers) CreatePostHandler(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path == "/posts" && r.Method == http.MethodGet {
+		p.GetPostsHandler(w, r)
+		return
+	}
+
 	if r.Method != "POST" {
 		p.log.Log("http_method_not_allowed", map[string]any{
 			"method": r.Method,
@@ -55,7 +60,8 @@ func (p *PostHandlers) CreatePostHandler(w http.ResponseWriter, r *http.Request)
 		Content  string `json:"content"`
 	}
 
-	if err := json.Unmarshal(body, &request); err != nil {
+	if err := json.Unmarshal(body, &request); 
+	err != nil {
 		p.log.Log("http_invalid_json", map[string]any{
 			"error": err.Error(),
 		})
@@ -101,6 +107,39 @@ func (p *PostHandlers) CreatePostHandler(w http.ResponseWriter, r *http.Request)
 
 }
 
+func (p *PostHandlers) GetPostsHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		p.log.Log("http_method_not_allowed", map[string]any{
+			"method": r.Method,
+		})
+		http.Error(w, "Error! Only GET allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	posts, err := p.postService.GetPosts()
+	if err != nil {
+		p.log.Log("get_posts_failed", map[string]any{"error": err.Error()})
+		http.Error(w, "Failed to get posts", http.StatusInternalServerError)
+		return
+	}
+
+	response := map[string]any{
+		"count": len(posts),
+		"posts": posts,
+	}
+
+	jsonData, err := json.Marshal(response)
+	if err != nil {
+		p.log.Log("http_response_marshal_error", map[string]any{"error": err.Error()})
+		http.Error(w, "Failed to create response", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	w.Write(jsonData)
+}
+
 func (p *PostHandlers) LikeHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
 		p.log.Log("http_method_not_allowed", map[string]any{
@@ -112,11 +151,17 @@ func (p *PostHandlers) LikeHandler(w http.ResponseWriter, r *http.Request) {
 
 	path := r.URL.Path
 	parts := strings.Split(path, "/")
-	if len(parts) != urlParts {
+	postIDPart := ""
+	switch {
+	case len(parts) == urlParts && parts[1] == "like":
+		postIDPart = parts[2]
+	case len(parts) == 4 && parts[1] == "posts" && parts[3] == "like":
+		postIDPart = parts[2]
+	default:
 		p.log.Log("http_invalid_like_path", map[string]any{
 			"path": path,
 		})
-		http.Error(w, "Invalid path. Use /like/{id}", http.StatusBadRequest)
+		http.Error(w, "Invalid path. Use /like/{id} or /posts/{id}/like", http.StatusBadRequest)
 		return
 	}
 
@@ -128,10 +173,10 @@ func (p *PostHandlers) LikeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	postID, err := strconv.Atoi(parts[2])
+	postID, err := strconv.Atoi(postIDPart)
 	if err != nil || postID <= 0 {
-		p.log.Log("http_invalid_like_id", map[string]any{
-			"value": parts[2],
+		p.log.Log("http_invalid_post_id", map[string]any{
+			"value": postIDPart,
 		})
 		http.Error(w, "Invalid post ID", http.StatusBadRequest)
 		return

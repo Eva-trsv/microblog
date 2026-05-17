@@ -5,34 +5,25 @@ import (
 	"microblog/services/engagement/repository"
 )
 
-type Service struct {
+type EngService struct {
 	repo *repository.Repository
 }
 
-func NewService(repo *repository.Repository) *Service {
-	return &Service{
+func NewService(repo *repository.Repository) *EngService {
+	return &EngService{
 		repo: repo,
 	}
 }
 
-func (s *Service) HandlePostLiked(eventID string, postID int) error {
-	ctx := context.Background()
-	processed, err := s.repo.IsProcessed(ctx, eventID)
-	if err != nil {
-		return err
-	}
-
-	if processed {
-		return nil
-	}
-
-	if err := s.repo.IncrementLike(ctx, postID); err != nil {
-		return err
-	}
-
-	return s.repo.SaveProcessed(ctx, eventID)
+func (s *EngService) HandleEvent(eventID string) error {
+	return s.repo.SaveProcessed(context.Background(), eventID)
 }
 
-func (s *Service) GetPostStats(postID int) (int, error) {
+func (s *EngService) HandlePostLiked(eventID string, postID int) error {
+	_, err := s.repo.ProcessPostLiked(context.Background(), eventID, postID)
+	return err
+}
+
+func (s *EngService) GetPostStats(postID int) (int, error) {
 	return s.repo.GetLikes(context.Background(), postID)
 }

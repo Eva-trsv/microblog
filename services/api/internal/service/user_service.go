@@ -3,12 +3,12 @@ package service
 import (
 	"context"
 	"fmt"
+	"microblog/services/api/internal/events"
 	"microblog/services/api/internal/logger"
 	"microblog/services/api/internal/models"
 	"regexp"
 	"strings"
 )
-
 
 type UserStorage interface {
 	Create(ctx context.Context, user *models.User) error
@@ -16,18 +16,23 @@ type UserStorage interface {
 	GetByEmail(ctx context.Context, email string) (*models.User, error)
 }
 
-
 type UserService struct {
-	storage UserStorage
-	log     *logger.Logger
+	storage  UserStorage
+	log      *logger.Logger
+	producer events.Producer
 }
 
-func NewUserService(storage UserStorage, log *logger.Logger) *UserService {
-	return &UserService{
+func NewUserService(storage UserStorage, log *logger.Logger, producer ...events.Producer) *UserService {
+	service := &UserService{
 		storage: storage,
 		log:     log,
 	}
+	if len(producer) > 0 {
+		service.producer = producer[0]
+	}
+	return service
 }
+
 // USER SERVICE
 
 func (s *UserService) CreateUser(username, email string) (*models.User, error) {
@@ -84,8 +89,23 @@ func (s *UserService) CreateUser(username, email string) (*models.User, error) {
 		return nil, fmt.Errorf("failed to get created user: %w", err)
 	}
 
+	if s.producer != nil {
+		event := events.NewUserRegisteredEvent(createdUser.ID, createdUser.Email, "")
+		if err := s.producer.Publish(context.Background(), events.TopicUserRegistered, event); err != nil {
+			s.log.Log("event_publish_error", map[string]any{
+				"error":   err.Error(),
+				"user_id": createdUser.ID,
+			})
+			return nil, err
+		}
+	}
+
 	return createdUser, nil
 
+}
+
+func (s *UserService) SetProducer(producer events.Producer) {
+	s.producer = producer
 }
 
 func (s *UserService) GetUserByEmail(email string) (*models.User, error) {

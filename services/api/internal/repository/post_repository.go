@@ -9,13 +9,13 @@ import (
 )
 
 type PostRepository struct {
-	db *pgxpool.Pool
+	db      *pgxpool.Pool
 	builder sq.StatementBuilderType
 }
 
 func NewPostRepository(db *pgxpool.Pool) *PostRepository {
 	return &PostRepository{
-		db: db,
+		db:      db,
 		builder: sq.StatementBuilder.PlaceholderFormat(sq.Dollar),
 	}
 }
@@ -93,4 +93,32 @@ func (r *PostRepository) Delete(ctx context.Context, postID int) error {
 
 	_, err = r.db.Exec(ctx, query, args...)
 	return err
+}
+
+func (r *PostRepository) GetAll(ctx context.Context) ([]*models.Post, error) {
+	query, args, err := r.builder.
+		Select("id", "author_id", "content", "like_count").
+		From("posts").
+		OrderBy("id DESC").
+		ToSql()
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := r.db.Query(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var posts []*models.Post
+	for rows.Next() {
+		post := &models.Post{}
+		if err := rows.Scan(&post.ID, &post.AuthorID, &post.Content, &post.LikeCount); err != nil {
+			return nil, err
+		}
+		posts = append(posts, post)
+	}
+
+	return posts, nil
 }
