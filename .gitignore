@@ -1,6 +1,4 @@
 
-config.go
-
 bin/
 .gocache/
 *.exe
