@@ -1,0 +1,15 @@
+
+bin/
+.gocache/
+*.exe
+*.test
+*.out
+*.go.[0-9]*
+
+.env
+*.log
+
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

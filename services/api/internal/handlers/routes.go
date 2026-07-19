@@ -1,0 +1,26 @@
+package handlers
+
+import (
+	"microblog/services/api/internal/logger"
+	"microblog/services/api/internal/service"
+	"net/http"
+)
+
+func SetupRoutes(userService *service.UserService, postService *service.PostService, log *logger.Logger) {
+	userHandlers := NewUserHandlers(userService, log)
+	postHandlers := NewPostHandlers(postService, log)
+
+	http.HandleFunc("/register", userHandlers.CreateHandler)
+	http.HandleFunc("/login", userHandlers.LoginHandler)
+	http.HandleFunc("/users", userHandlers.GetUserByIDHandler)
+	http.HandleFunc("/users/email", userHandlers.GetUserByEmailHandler)
+
+	http.HandleFunc("/posts/get", postHandlers.GetPostByIDHandler)
+	http.HandleFunc("/posts/create", postHandlers.CreatePostHandler)
+	http.HandleFunc("/posts", postHandlers.CreatePostHandler)
+	http.HandleFunc("/posts/", postHandlers.LikeHandler)
+
+	http.HandleFunc("/authors/", postHandlers.GetByAuthorIDHandler)
+	http.HandleFunc("/posts/delete", postHandlers.DeleteHandler)
+	http.HandleFunc("/like/", postHandlers.LikeHandler)
+}
